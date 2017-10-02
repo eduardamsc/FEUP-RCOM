@@ -16,6 +16,10 @@
 #define FALSE 0
 #define TRUE 1
 
+int llopen(int fd) {
+	
+}
+
 volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
