@@ -22,6 +22,8 @@
 #define C_SET 0x03
 #define C_UA 0x07
 
+#define TIMEOUT 3 //seconds
+
 enum State {
 	S1,
 	S2,
@@ -29,12 +31,18 @@ enum State {
 	END_READ
 };
 
+static bool timedOut = false;
+
+void sigAlarmHandler(int sig) {
+	timedOut = true;
+}
+
 bool validBCC(char response[]) {
 	return (response[2] == (response[0] ^ response[1]));
 }
 
 int llopen(int fd) {
-	enum State state = S1;
+	bool timedOut = false;
 	int setMsgSize = 5;
 	char set_msg[setMsgSize];
 
@@ -44,41 +52,45 @@ int llopen(int fd) {
 	set_msg[3] = A^C_SET;
 	set_msg[4] = FLAG;
 
-	write(fd, set_msg, setMsgSize);
-
-	char buf[1];
-	buf[0] = 0;
-	int res = -1;
-	char response[3];
-	int ind = 0;
-	while ((res = read(fd,buf,1)) != -1) {
-		switch (state) {
-		case S1:
-			if (res != 0 && buf[0] == FLAG) {
-				state = S2;
-			}
-			break;
-		case S2:
-			if (res != 0 && buf[0] != FLAG) {
-				state = S3;
-			}
-			break;
-		case S3:
-			if (res != 0 && buf[0] == FLAG) {
-				state = END_READ;
-			}
-			response[ind] = buf[0];
-			if (ind == 3) {
-				if (!validBCC(response)) {
-					return -1;
+	do {
+		enum State state = S1;
+		write(fd, set_msg, setMsgSize);
+		alarm(3);
+	
+		char buf[1];
+		buf[0] = 0;
+		int res = -1;
+		char response[3];
+		int ind = 0;
+		while ((res = read(fd,buf,1)) != -1) {
+			switch (state) {
+			case S1:
+				if (res != 0 && buf[0] == FLAG) {
+					state = S2;
 				}
+				break;
+			case S2:
+				if (res != 0 && buf[0] != FLAG) {
+					state = S3;
+				}
+				break;
+			case S3:
+				if (res != 0 && buf[0] == FLAG) {
+					state = END_READ;
+				}
+				response[ind] = buf[0];
+				if (ind == 3) {
+					if (!validBCC(response)) {
+						return -1;
+					}
+				}
+				ind++;
+				break;
+			case END_READ:
+				break;
 			}
-			ind++;
-			break;
-		case END_READ:
-			break;
 		}
-	}
+	} while (timedOut);
 	
 	return 0;
 }
