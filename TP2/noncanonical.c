@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <strings.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -17,11 +18,97 @@
 
 volatile int STOP=FALSE;
 
+#define FLAG 0x7E
+#define A 0x03
+#define C_SET 0x03
+#define C_UA 0x07
+
+#define TIMEOUT 3 //seconds
+
+enum State {
+	S1,
+	S2,
+	S3,
+	END_READ
+};
+
+static bool timedOut = false;
+
+void sigAlarmHandler(int sig) {
+	timedOut = true;
+}
+
+bool validBCC(char received[]) {
+printf("%x%x%x\n", received[0],received[1],received[2]);
+	return (received[2] == (received[0] ^ received[1]));
+}
+
+int llopen(int fd) {
+	bool end = false;
+	int setMsgSize = 5;
+	char ua_msg[setMsgSize];
+
+	bzero(ua_msg, setMsgSize);
+
+	ua_msg[0] = FLAG;
+	ua_msg[1] = A;
+	ua_msg[2] = C_UA;
+	ua_msg[3] = A^C_UA;
+	ua_msg[4] = FLAG;
+
+
+		enum State state = S1;
+	
+		char buf[1];
+		buf[0] = 0;
+		int res = -1;
+		char received[3];
+		int ind = 0;
+		while (((res = read(fd,buf,1)) != -1) && end==false) {
+			switch (state) {
+			case S1:
+
+				if (res != 0 && buf[0] == FLAG) {
+					state = S2;
+				}
+				break;
+			case S2:
+
+				if (res != 0 && buf[0] != FLAG) {
+					state = S3;
+				}
+				break;
+			case S3:
+
+				if (res != 0 && buf[0] == FLAG) {
+					state = END_READ;
+				}
+				received[ind] = buf[0];
+
+				if (ind == 3) {
+					if (!validBCC(received)) {
+						printf("llopen(): invalid SET\n");
+						return -1;
+					}
+				}
+				ind++;
+				break;
+			case END_READ:
+				printf("llopen(): received SET\n");
+				end =true;
+				break;
+			}
+		}
+	printf("sending UA\n");
+	write(fd, ua_msg, setMsgSize);
+	printf("llopen Success\n");
+	return 0;
+}
+
 int main(int argc, char** argv)
 {
-    int fd,c, res;
+    int fd;
     struct termios oldtio,newtio;
-    char buf[255];
 
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
@@ -74,23 +161,14 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    char msg[255];
-    while (STOP==FALSE) {       /* loop for input */
-      res = read(fd,buf,1);   /* returns after 5 chars have been input */
-      buf[res]=0;               /* so we can printf... */
-      printf(":%s:%d\n", buf, res);
-      strcat(msg,buf);
-      if (buf[0]=='\0' && res>0) STOP=TRUE;
-    }
+    llopen(fd);
 
 
 
   /* 
     O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guião 
   */
-    printf("\n\n");
-    res = write(fd,msg,255);   
-    printf("%d bytes written\n", res);
+   
 
 
     tcsetattr(fd,TCSANOW,&oldtio);
