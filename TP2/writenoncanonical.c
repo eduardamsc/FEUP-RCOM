@@ -10,6 +10,7 @@
 #include <strings.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
@@ -35,6 +36,7 @@ static bool timedOut = false;
 
 void sigAlarmHandler(int sig) {
 	timedOut = true;
+	printf("alarm, timedOut = %d\n", timedOut);
 }
 
 bool validBCC(char response[]) {
@@ -42,9 +44,11 @@ bool validBCC(char response[]) {
 }
 
 int llopen(int fd) {
-	bool timedOut = false;
+	signal(SIGALRM, sigAlarmHandler);
+	timedOut = false;
 	int setMsgSize = 5;
 	char set_msg[setMsgSize];
+	bzero(set_msg, setMsgSize);
 
 	set_msg[0] = FLAG;
 	set_msg[1] = A;
@@ -53,45 +57,57 @@ int llopen(int fd) {
 	set_msg[4] = FLAG;
 
 	do {
+		timedOut = false;
+		bool endRead = false;
 		enum State state = S1;
+		printf("llopen(): Sending SET\n");
 		write(fd, set_msg, setMsgSize);
 		alarm(3);
-	
+
 		char buf[1];
 		buf[0] = 0;
 		int res = -1;
 		char response[3];
 		int ind = 0;
-		while ((res = read(fd,buf,1)) != -1) {
+		while (!endRead && !timedOut && (res = read(fd,buf,1)) != -1) {
+			printf("buf[0] = %x\n", buf[0]);
 			switch (state) {
 			case S1:
+				printf("In S1, timedOut = %d\n", timedOut);
 				if (res != 0 && buf[0] == FLAG) {
 					state = S2;
 				}
 				break;
 			case S2:
+				printf("In S2\n");
 				if (res != 0 && buf[0] != FLAG) {
 					state = S3;
 				}
 				break;
 			case S3:
+				printf("In S3\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = END_READ;
 				}
 				response[ind] = buf[0];
 				if (ind == 3) {
 					if (!validBCC(response)) {
+						printf("llopen(): Invalid UA\n");
 						return -1;
 					}
 				}
 				ind++;
 				break;
 			case END_READ:
+				printf("llopen(): Received UA\n");
+				endRead = true;
 				break;
 			}
 		}
 	} while (timedOut);
-	
+
+	printf("llopen(): Success\n");
+
 	return 0;
 }
 
@@ -99,12 +115,11 @@ volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
 {
-    int fd, res;
+    int fd;
     struct termios oldtio,newtio;
-    char buf[255];
-    
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
+
+    if ( (argc < 2) ||
+  	     ((strcmp("/dev/ttyS0", argv[1])!=0) &&
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
@@ -138,8 +153,8 @@ int main(int argc, char** argv)
 
 
 
-  /* 
-    VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
+  /*
+    VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a
     leitura do(s) pr�ximo(s) caracter(es)
   */
 
@@ -155,26 +170,26 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
 	/********************/
-	
+
 	if (-1 == llopen(fd)) {
 		printf("Invalid UA response\n");
 		exit(-1);
 	}
 
-  /* 
-    O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
-    o indicado no gui�o 
+  /*
+    O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar
+    o indicado no gui�o
   */
 
 
 
-   
+
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
       perror("tcsetattr");
       exit(-1);
     }
 
-	
+
 
 
     close(fd);
