@@ -78,7 +78,7 @@ int llopen(int fd) {
 			printf("buf[0] = %x\n", buf[0]);
 			switch (state) {
 			case S1:
-				printf("In S1, timedOut = %d\n", timedOut);
+				printf("In S1\n";
 				if (res != 0 && buf[0] == FLAG) {
 					state = S2;
 				}
@@ -116,9 +116,50 @@ int llopen(int fd) {
 	return 0;
 }
 
-int llwrite(int fd, char *buffer, int length) {
-	char *stuffedMsg = wrapMsg(buffer, length);
-//	write(fd, buffer, length);
+int llwrite(int fd, char *buffer, int originalLength) {
+	wrapMsg(buffer, length, stuffedMsg, stuffedMsgLength);
+	do {
+		write(fd, stuffedMsg, stuffedMsgLength);
+
+		bool endRead = false;
+
+		while (!endRead && !timedOut && (res = read(fd,buf,1)) != -1) {
+			printf("buf[0] = %x\n", buf[0]);
+			switch (state) {
+			case S1:
+				printf("In S1\n");
+				if (res != 0 && buf[0] == FLAG) {
+					state = S2;
+				}
+				break;
+			case S2:
+				printf("In S2\n");
+				if (res != 0 && buf[0] != FLAG) {
+					state = S3;
+				}
+				break;
+			case S3:
+				printf("In S3\n");
+				if (res != 0 && buf[0] == FLAG) {
+					state = END_READ;
+				}
+				response[ind] = buf[0];
+				if (ind == 3) {
+					if (!validBCC(response)) {
+						printf("llopen(): Invalid UA\n");
+						return -1;
+					}
+				}
+				ind++;
+				break;
+			case END_READ:
+				printf("llopen(): Received UA\n");
+				endRead = true;
+				break;
+			}
+		}
+	}
+
 }
 
 volatile int STOP=FALSE;
