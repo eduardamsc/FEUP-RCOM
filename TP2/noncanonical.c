@@ -22,6 +22,9 @@ volatile int STOP=FALSE;
 #define A 0x03
 #define C_SET 0x03
 #define C_UA 0x07
+#define DISC 0xB
+#define RR 0x05
+#define REJ 0x01
 
 #define TIMEOUT 3 //seconds
 
@@ -57,52 +60,52 @@ int llopen(int fd) {
 	ua_msg[4] = FLAG;
 
 
-		enum State state = S1;
+	enum State state = S1;
 	
-		char buf[1];
-		buf[0] = 0;
-		int res = -1;
-		char received[3];
-		int ind = 0;
-		while (((res = read(fd,buf,1)) != -1) && end==false) {
-			switch (state) {
-			case S1:
-
-				if (res != 0 && buf[0] == FLAG) {
-					state = S2;
-				}
-				break;
-			case S2:
-
-				if (res != 0 && buf[0] != FLAG) {
-					state = S3;
-				}
-				break;
-			case S3:
-
-				if (res != 0 && buf[0] == FLAG) {
-					state = END_READ;
-				}
-				received[ind] = buf[0];
-
-				if (ind == 3) {
-					if (!validBCC(received)) {
-						printf("llopen(): invalid SET\n");
-						return -1;
-					}
-				}
-				ind++;
-				break;
-			case END_READ:
-				printf("llopen(): received SET\n");
-				end =true;
-				break;
+	char buf[1];
+	buf[0] = 0;
+	int res = -1;
+	char received[3];
+	int ind = 0;
+	while (((res = read(fd,buf,1)) != -1) && end==false) {
+		switch (state) {
+		case S1:
+			if (res != 0 && buf[0] == FLAG) {
+				state = S2;
 			}
+			break;
+		case S2:
+			if (res != 0 && buf[0] != FLAG) {
+				state = S3;
+			}
+			break;
+		case S3:
+			if (res != 0 && buf[0] == FLAG) {
+				state = END_READ;
+			}
+			received[ind] = buf[0];
+
+			if (ind == 3) {
+				if (!validBCC(received)) {
+					printf("llopen(): invalid SET\n");
+					return -1;
+				}
+			}
+			ind++;
+			break;
+		case END_READ:
+			printf("llopen(): received SET\n");
+			end =true;
+			break;
 		}
+	}
 	printf("sending UA\n");
 	write(fd, ua_msg, setMsgSize);
 	printf("llopen Success\n");
 	return 0;
+}
+
+int llread(int fd, char * buffer) {
 }
 
 int main(int argc, char** argv)
@@ -144,14 +147,6 @@ int main(int argc, char** argv)
     newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
 
 
-
-  /* 
-    VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
-    leitura do(s) próximo(s) caracter(es)
-  */
-
-
-
     tcflush(fd, TCIOFLUSH);
 
     if ( tcsetattr(fd,TCSANOW,&newtio) == -1) {
@@ -161,14 +156,9 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
+    char *msg;
     llopen(fd);
-
-
-
-  /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guião 
-  */
-   
+    llread(fd, msg);
 
 
     tcsetattr(fd,TCSANOW,&oldtio);
