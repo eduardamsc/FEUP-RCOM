@@ -18,10 +18,15 @@
 #define FALSE 0
 #define TRUE 1
 
+//TODO - Ns and Nr.
 #define FLAG 0x7E
 #define A 0x03
+#define C_I 0x0
 #define C_SET 0x03
 #define C_UA 0x07
+#define C_RR 0x05
+#define C_REJ 0x01
+#define C_DISC 0xB
 
 #define TIMEOUT 3 //seconds
 
@@ -111,6 +116,11 @@ int llopen(int fd) {
 	return 0;
 }
 
+int llwrite(int fd, char *buffer, int length) {
+	char *stuffedMsg = wrapMsg(buffer, length);
+//	write(fd, buffer, length);
+}
+
 volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
@@ -171,8 +181,15 @@ int main(int argc, char** argv)
 
 	/********************/
 
+	char msg[] = "qwerty0123456789";
+
 	if (-1 == llopen(fd)) {
 		printf("Invalid UA response\n");
+		exit(-1);
+	}
+
+	if (-1 == llwrite(fd, msg, strlen(msg))) {
+		printf("llwrite() failed\n");
 		exit(-1);
 	}
 
