@@ -27,6 +27,7 @@
 #define C_RR 0x05
 #define C_REJ 0x01
 #define C_DISC 0xB
+#define ESC 0x7D
 
 #define TIMEOUT 3 //seconds
 
@@ -48,9 +49,12 @@ bool validBCC(char response[]) {
 	return (response[2] == (response[0] ^ response[1]));
 }
 
+bool rejected(char response[]) {
+	return (response[1] == C_REJ);	
+}
+
 int llopen(int fd) {
 	signal(SIGALRM, sigAlarmHandler);
-	timedOut = false;
 	int setMsgSize = 5;
 	char set_msg[setMsgSize];
 	bzero(set_msg, setMsgSize);
@@ -78,7 +82,7 @@ int llopen(int fd) {
 			printf("buf[0] = %x\n", buf[0]);
 			switch (state) {
 			case S1:
-				printf("In S1\n";
+				printf("In S1\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = S2;
 				}
@@ -116,14 +120,93 @@ int llopen(int fd) {
 	return 0;
 }
 
-int llwrite(int fd, char *buffer, int originalLength) {
-	wrapMsg(buffer, length, stuffedMsg, stuffedMsgLength);
+int stuffPacket(char packet[], int packetLength, char stuffedPacket[], int *stuffedPacketLength) {
+	stuffedPacket = realloc(stuffedPacket, packetLength);
+	if (stuffedPacket == NULL) {
+		printf("stuffPacket(): first realloc() failed\n");
+		return -1;
+	}
+	for (int stuffedInd = 0, unstuffedInd = 0; unstuffedInd < packetLength; stuffedInd++, unstuffedInd++) {
+		if (packet[unstuffedInd] == FLAG || packet[unstuffedInd] == ESC) {
+			stuffedPacket[stuffedInd++] = ESC;
+			*stuffedPacketLength++;
+			stuffedPacket = realloc(stuffedPacket, *stuffedPacketLength);
+		}
+		stuffedPacket[stuffedInd] = packet[unstuffedInd];
+	}
+	return 0;
+}
+
+char calculateBCC2(char BCC1, char stuffedPacket[], int stuffedPacketLength) {
+	int res = 0;
+	for (int ind = 0; ind < stuffedPacketLength; ind++) {
+		res ^= stuffedPacket[ind];
+	}
+	return BCC1 ^ res;
+}
+
+int makeFrame(char stuffedPacket[], int stuffedPacketLength, char frame[], int *frameLength) {
+	*frameLength = stuffedPacketLength + 6;
+	frame = malloc(*frameLength);
+	if (frame == NULL) {
+		printf("makeFrame(): malloc() failed\n");
+		return -1;
+	}
+	frame[0] = FLAG;
+	frame[1] = A;
+	frame[2] = C_I;
+	frame[3] = A ^ C_I;
+	for (int ind = 4, packetInd = 0; ind < *frameLength - 2; ind++, packetInd++) {
+		frame[ind] = stuffedPacket[packetInd];
+	}
+	frame[*frameLength - 2] = calculateBCC2(frame[3], stuffedPacket, stuffedPacketLength);
+	frame[*frameLength - 1] = FLAG;
+
+	return 0;
+}
+
+int sendFrame(int fd, char frame[], int stuffedPacketLength, int frameLength) {
+	if (write(fd, frame, frameLength) == -1) {
+		printf("sendFrame(): write failed\n");
+		return -1;
+	}
+	return stuffedPacketLength;
+}
+
+int llwrite(int fd, char *data, int dataLength) {
+	signal(SIGALRM, sigAlarmHandler);
+	int bytesWritten = 0;
+	char *stuffedData = NULL;
+	int stuffedDataLength = -1;
+	bool rejected = false;
+	if (stuffPacket(data, dataLength, stuffedData, &stuffedDataLength) == -1) {
+		printf("llwrite(): stuffPacket() failed\n");
+		return -1;
+	}
+
 	do {
-		write(fd, stuffedMsg, stuffedMsgLength);
-
+		char *frame = NULL;
+		int frameLength = -1;
+		timedOut = false;
 		bool endRead = false;
+		enum State state = S1;
+		printf("llwrite(): Computing and sending frame\n");
+		if (makeFrame(stuffedData, stuffedDataLength, frame, &frameLength) == -1) {
+			printf("llwrite(): Error making frame\n");
+			return -1;
+		}
+		if ((bytesWritten = sendFrame(fd, frame, stuffedDataLength, frameLength)) == -1) {
+			printf("llwrite(): Error sending frame\n");
+			return -1;
+		}
+		alarm(3);
 
-		while (!endRead && !timedOut && (res = read(fd,buf,1)) != -1) {
+		char buf[1];
+		buf[0] = 0;
+		int res = -1;
+		char response[3];
+		int ind = 0;
+		while (!endRead && !timedOut && !rejected && (res = read(fd,buf,1)) != -1) {
 			printf("buf[0] = %x\n", buf[0]);
 			switch (state) {
 			case S1:
@@ -146,20 +229,28 @@ int llwrite(int fd, char *buffer, int originalLength) {
 				response[ind] = buf[0];
 				if (ind == 3) {
 					if (!validBCC(response)) {
-						printf("llopen(): Invalid UA\n");
+						printf("llwrite(): Invalid response\n");
 						return -1;
+					}
+					if (rejected(response)) {
+						printf("llwrite(): Rejected frame\n");
+						rejected = true;
+						break;
 					}
 				}
 				ind++;
 				break;
 			case END_READ:
-				printf("llopen(): Received UA\n");
+				printf("llwrite(): Received response\n");
 				endRead = true;
 				break;
 			}
 		}
-	}
+	} while (timedOut || rejected);
 
+	printf("llwrite(): Success\n");
+
+	return bytesWritten;
 }
 
 volatile int STOP=FALSE;
