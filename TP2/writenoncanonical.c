@@ -29,6 +29,15 @@
 #define C_DISC 0xB
 #define ESC 0x7D
 
+// S and U frames
+// A | C | BCC
+#define A_IND_RESP 0
+#define C_IND_RESP 1
+#define BCC_IND_RESP 2
+
+#define I_FRAMES_SEQ_NUM_BIT(x) (x >> 7)
+#define S_U_FRAMES_SEQ_NUM_BIT(x) (x >> 8)
+
 #define TIMEOUT 3 //seconds
 
 enum State {
@@ -39,6 +48,7 @@ enum State {
 };
 
 static bool timedOut = false;
+static int receivedSeqNum = -1;
 
 void sigAlarmHandler(int sig) {
 	timedOut = true;
@@ -46,11 +56,11 @@ void sigAlarmHandler(int sig) {
 }
 
 bool validBCC(char response[]) {
-	return (response[2] == (response[0] ^ response[1]));
+	return (response[BCC_IND_RESP] == (response[A_IND_RESP] ^ response[C_IND_RESP]));
 }
 
-bool rejected(char response[]) {
-	return (response[1] == C_REJ);	
+bool isRejected(char response[]) {
+	return (response[C_IND_RESP] == C_REJ);	
 }
 
 int llopen(int fd) {
@@ -129,7 +139,7 @@ int stuffPacket(char packet[], int packetLength, char stuffedPacket[], int *stuf
 	for (int stuffedInd = 0, unstuffedInd = 0; unstuffedInd < packetLength; stuffedInd++, unstuffedInd++) {
 		if (packet[unstuffedInd] == FLAG || packet[unstuffedInd] == ESC) {
 			stuffedPacket[stuffedInd++] = ESC;
-			*stuffedPacketLength++;
+			(*stuffedPacketLength)++;
 			stuffedPacket = realloc(stuffedPacket, *stuffedPacketLength);
 		}
 		stuffedPacket[stuffedInd] = packet[unstuffedInd];
@@ -232,16 +242,21 @@ int llwrite(int fd, char *data, int dataLength) {
 						printf("llwrite(): Invalid response\n");
 						return -1;
 					}
-					if (rejected(response)) {
+					if (isRejected(response)) {
 						printf("llwrite(): Rejected frame\n");
 						rejected = true;
 						break;
+					}
+					if (receivedSeqNum == S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP])) {
+						printf("llwrite(): Frame received out of order\n");
+
 					}
 				}
 				ind++;
 				break;
 			case END_READ:
 				printf("llwrite(): Received response\n");
+				receivedSeqNum = S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP]);
 				endRead = true;
 				break;
 			}
