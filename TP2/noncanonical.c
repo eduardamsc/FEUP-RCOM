@@ -19,12 +19,24 @@
 volatile int STOP=FALSE;
 
 #define FLAG 0x7E
-#define A 0x03
+#define A_CMD 0x01
+#define A_RESP 0x03
+#define C_I 0x0
 #define C_SET 0x03
 #define C_UA 0x07
-#define DISC 0xB
-#define RR 0x05
-#define REJ 0x01
+#define C_RR 0x05
+#define C_REJ 0x01
+#define C_DISC 0xB
+#define ESC 0x7D
+
+// S and U frames
+// A | C | BCC
+#define A_IND_RESP 0
+#define C_IND_RESP 1
+#define BCC_IND_RESP 2
+
+#define I_FRAMES_SEQ_NUM_BIT(x) (x >> 7)
+#define S_U_FRAMES_SEQ_NUM_BIT(x) (x >> 8)
 
 #define TIMEOUT 3 //seconds
 
@@ -32,6 +44,8 @@ enum State {
 	S1,
 	S2,
 	S3,
+	S4,
+	FOUND_ESC,
 	END_READ
 };
 
@@ -41,10 +55,12 @@ void sigAlarmHandler(int sig) {
 	timedOut = true;
 }
 
-bool validBCC(char received[]) {
+bool validBCC1(char received[]) {
 printf("%x%x%x\n", received[0],received[1],received[2]);
 	return (received[2] == (received[0] ^ received[1]));
 }
+
+bool validBCC2(int BCC1, )
 
 int llopen(int fd) {
 	bool end = false;
@@ -54,14 +70,13 @@ int llopen(int fd) {
 	bzero(ua_msg, setMsgSize);
 
 	ua_msg[0] = FLAG;
-	ua_msg[1] = A;
+	ua_msg[1] = A_RESP;
 	ua_msg[2] = C_UA;
 	ua_msg[3] = A^C_UA;
 	ua_msg[4] = FLAG;
 
 
 	enum State state = S1;
-	
 	char buf[1];
 	buf[0] = 0;
 	int res = -1;
@@ -77,6 +92,7 @@ int llopen(int fd) {
 		case S2:
 			if (res != 0 && buf[0] != FLAG) {
 				state = S3;
+				received[ind++] = buf[0];
 			}
 			break;
 		case S3:
@@ -86,7 +102,7 @@ int llopen(int fd) {
 			received[ind] = buf[0];
 
 			if (ind == 3) {
-				if (!validBCC(received)) {
+				if (!validBCC1(received)) {
 					printf("llopen(): invalid SET\n");
 					return -1;
 				}
@@ -105,7 +121,113 @@ int llopen(int fd) {
 	return 0;
 }
 
-int llread(int fd, char * buffer) {
+int sendRejection(int fd) {
+	int responseSize = 5;
+	char response[responseSize];
+
+	bzero(response, responseSize);
+
+	response[0] = FLAG;
+	response[1] = A_RESP;
+	response[2] = C_REJ;
+	response[3] = A^C_REJ;
+	response[4] = FLAG;
+
+	if (write(fd, response, responseSize) == -1) {
+		printf("sendRejection(): write failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+// TODO: Destuffing.
+int llread(int fd, char *buffer) {
+	bool end = false;
+	int bufferLength = 0, stuffedPacketLength = 0;
+	char *stuffedPacket = NULL;
+
+	enum State state = S1;
+	char buf[1];
+	buf[0] = 0;
+	int res = -1;
+	char received[3];
+	int ind = 0;
+	while (((res = read(fd,buf,1)) != -1) && end==false) {
+		switch (state) {
+		case S1:
+			if (res != 0 && buf[0] == FLAG) {
+				state = S2;
+			}
+			break;
+		case S2:
+			if (res != 0 && buf[0] != FLAG) {
+				state = S3;
+				received[ind++] = buf[0];
+			}
+			break;
+		case S3:
+			if (res != 0) {
+				received[ind] = buf[0];
+				if (ind == 3) {
+					if (!validBCC1(received)) {
+						printf("llread(): invalid SET\n");
+						return -1;
+					}
+					ind = 0;
+					state = S4;
+					break;
+				}
+				ind++;
+			}
+			break;
+		case S4:
+			if (res != 0) {
+				if (buf[0] == ESC) {
+					state = FOUND_ESC;
+				} else if (buf[0] == FLAG) {
+					state = END_READ;
+				} else {
+					stuffedPacketLength++;
+					stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
+					stuffedPacket[stuffedPacketLength - 1] = buf[0];
+				}
+			}
+			break;
+		case FOUND_ESC:
+			if (res != 0) {
+				stuffedPacketLength++;
+				stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
+				stuffedPacket[stuffedPacketLength - 1] = buf[0];
+				state = S4;
+			}
+			break;
+		case END_READ:
+			printf("llread(): received I frame\n");
+			end = true;
+			break;
+		}
+	}
+	int BCC2 = stuffedPacket[stuffedPacketLength - 2];
+	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength - 2);
+	stuffedPacketLength -= 2;
+	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
+	if (!validBCC2(BCC1, buffer, bufferLength, BCC2)) {
+		printf("llread(): Invalid BCC2, sending REJ \n");
+		if (sendRejection(fd) == -1) {
+			printf("llread(): sendRejection error\n");
+			return -1;
+		}
+	} else {
+		printf("llread(): Sending RR\n");
+		if (sendReady(fd) == -1) {
+			printf("llread(): sendReady error\n");
+			return -1;
+		}
+		printf("llread(): Success\n");
+	}
+	
+	return bufferLength;
 }
 
 int main(int argc, char** argv)
