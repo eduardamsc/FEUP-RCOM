@@ -56,11 +56,19 @@ void sigAlarmHandler(int sig) {
 }
 
 bool validBCC1(char received[]) {
-printf("%x%x%x\n", received[0],received[1],received[2]);
 	return (received[2] == (received[0] ^ received[1]));
 }
 
-bool validBCC2(int BCC1, )
+bool validBCC2(char BCC1, char* buffer, int bufferLength, char BCC2) {
+	char aux=BCC1;
+	printf("BCC1 %x\n", BCC1);
+	for (int i=0; i<bufferLength; i++) {
+		aux^=buffer[i];
+	printf("buffer[i] %x\n", buffer[i]);
+	}
+
+	return aux==BCC2;
+}
 
 int llopen(int fd) {
 	bool end = false;
@@ -72,7 +80,7 @@ int llopen(int fd) {
 	ua_msg[0] = FLAG;
 	ua_msg[1] = A_RESP;
 	ua_msg[2] = C_UA;
-	ua_msg[3] = A^C_UA;
+	ua_msg[3] = A_RESP^C_UA;
 	ua_msg[4] = FLAG;
 
 
@@ -130,11 +138,66 @@ int sendRejection(int fd) {
 	response[0] = FLAG;
 	response[1] = A_RESP;
 	response[2] = C_REJ;
-	response[3] = A^C_REJ;
+	response[3] = A_RESP^C_REJ;
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
 		printf("sendRejection(): write failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char** buffer, int* bufferLength) {
+printf("stuffedPacketLength %x\n",stuffedPacketLength);
+	*buffer = realloc(*buffer, stuffedPacketLength);
+	if (*buffer == NULL) {
+		printf("unstuffPacket(): first realloc() failed\n");
+		return -1;
+	}
+
+	for (int stuffedInd = 0, bufferInd = 0; bufferInd < stuffedPacketLength; stuffedInd++, bufferInd++) {
+		if (stuffedPacket[stuffedInd] == ESC) {
+			
+			if (stuffedPacket[stuffedInd+1] == 0x5e) {
+				(*buffer)[bufferInd] = FLAG;
+				
+				stuffedInd++;
+			}
+
+			if (stuffedPacket[stuffedInd+1] == 0x5d) {
+				(*buffer)[bufferInd] = ESC;
+				
+				stuffedInd++;
+			}
+		} else {
+			
+			(*buffer)[bufferInd] = stuffedPacket[stuffedInd];
+		}
+
+		(*bufferLength)++;
+	}
+
+	*buffer = realloc(*buffer, *bufferLength);
+
+	return 0;
+}
+
+int sendReady(int fd) {
+	int responseSize = 5;
+	char response[responseSize];
+
+	bzero(response, responseSize);
+
+	response[0] = FLAG;
+	response[1] = A_RESP;
+	response[2] = C_RR;
+	response[3] = A_RESP^C_RR;
+	response[4] = FLAG;
+
+	if (write(fd, response, responseSize) == -1) {
+		printf("sendReady(): write failed\n");
 		return -1;
 	}
 
@@ -153,6 +216,7 @@ int llread(int fd, char *buffer) {
 	int res = -1;
 	char received[3];
 	int ind = 0;
+
 	while (((res = read(fd,buf,1)) != -1) && end==false) {
 		switch (state) {
 		case S1:
@@ -208,11 +272,15 @@ int llread(int fd, char *buffer) {
 			break;
 		}
 	}
-	int BCC2 = stuffedPacket[stuffedPacketLength - 2];
+
+	char BCC2 = stuffedPacket[stuffedPacketLength - 2];
 	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength - 2);
 	stuffedPacketLength -= 2;
-	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
-	if (!validBCC2(BCC1, buffer, bufferLength, BCC2)) {
+	
+	unstuffPacket(stuffedPacket, stuffedPacketLength, &buffer, &bufferLength);
+printf("bl %x\n",bufferLength);
+
+	if (!validBCC2(stuffedPacket[3], buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd) == -1) {
 			printf("llread(): sendRejection error\n");
