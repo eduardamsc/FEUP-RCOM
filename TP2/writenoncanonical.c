@@ -39,6 +39,7 @@
 #define S_U_FRAMES_SEQ_NUM_BIT(x) (x >> 8)
 
 #define TIMEOUT 3 //seconds
+#define MAX_TIME_OUTS 5 // attempts
 
 enum State {
 	S1,
@@ -60,7 +61,7 @@ bool validBCC(char response[]) {
 }
 
 bool isRejected(char response[]) {
-	return (response[C_IND_RESP] == C_REJ);	
+	return (response[C_IND_RESP] == C_REJ);
 }
 
 int llopen(int fd) {
@@ -89,22 +90,18 @@ int llopen(int fd) {
 		char response[3];
 		int ind = 0;
 		while (!endRead && !timedOut && (res = read(fd,buf,1)) != -1) {
-			printf("buf[0] = %x\n", buf[0]);
 			switch (state) {
 			case S1:
-				printf("In S1\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = S2;
 				}
 				break;
 			case S2:
-				printf("In S2\n");
 				if (res != 0 && buf[0] != FLAG) {
 					state = S3;
 				}
 				break;
 			case S3:
-				printf("In S3\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = END_READ;
 				}
@@ -165,20 +162,15 @@ int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int 
 		printf("makeFrame(): malloc() failed\n");
 		return -1;
 	}
-	printf("frameLength = %d\n", *frameLength);
 	(*frame)[0] = FLAG;
 	(*frame)[1] = A;
 	(*frame)[2] = C_I;
 	(*frame)[3] = A ^ C_I;
 	for (int ind = 4, packetInd = 0; ind < *frameLength - 2; ind++, packetInd++) {
-		printf("%x\n", (*frame)[ind]);
-		printf("%x\n", stuffedPacket[packetInd]);
 		(*frame)[ind] = stuffedPacket[packetInd];
 	}
-	printf("stuff\n");
 	(*frame)[*frameLength - 2] = calculateBCC2((*frame)[3], stuffedPacket, stuffedPacketLength);
 	(*frame)[*frameLength - 1] = FLAG;
-	printf("stuff\n");
 
 	return 0;
 }
@@ -200,6 +192,8 @@ int llwrite(int fd, char *data, int dataLength) {
 	char *stuffedData = NULL;
 	int stuffedDataLength = -1;
 	bool rejected = false;
+	bool success = false;
+	int numTimeOuts = 0;
 	if (stuffPacket(data, dataLength, &stuffedData, &stuffedDataLength) == -1) {
 		printf("llwrite(): stuffPacket() failed\n");
 		return -1;
@@ -209,15 +203,14 @@ int llwrite(int fd, char *data, int dataLength) {
 		char *frame = NULL;
 		int frameLength = -1;
 		timedOut = false;
+		rejected = false;
 		bool endRead = false;
 		enum State state = S1;
 		printf("llwrite(): Computing and sending frame\n");
-		printf("stuffedDataLength = %d\n", stuffedDataLength);
 		if (makeFrame(stuffedData, stuffedDataLength, &frame, &frameLength) == -1) {
 			printf("llwrite(): Error making frame\n");
 			return -1;
 		}
-		printf("stuffedDataLength = %d\n", stuffedDataLength);
 		if ((bytesWritten = sendFrame(fd, frame, stuffedDataLength, frameLength)) == -1) {
 			printf("llwrite(): Error sending frame\n");
 			return -1;
@@ -242,6 +235,7 @@ int llwrite(int fd, char *data, int dataLength) {
 				printf("In S2\n");
 				if (res != 0 && buf[0] != FLAG) {
 					state = S3;
+					response[ind++] = buf[0];
 				}
 				break;
 			case S3:
@@ -250,7 +244,7 @@ int llwrite(int fd, char *data, int dataLength) {
 					state = END_READ;
 				}
 				response[ind] = buf[0];
-				if (ind == 3) {
+				if (ind == 2) {
 					if (!validBCC(response)) {
 						printf("llwrite(): Invalid response\n");
 						return -1;
@@ -272,12 +266,20 @@ int llwrite(int fd, char *data, int dataLength) {
 				printf("llwrite(): Received response\n");
 				receivedSeqNum = S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP]);
 				endRead = true;
+				success = true;
 				break;
 			}
 		}
-	} while (timedOut || rejected);
+		if (timedOut || rejected) {
+			numTimeOuts++;
+		}
+	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || rejected);
 
-	printf("llwrite(): Success\n");
+	if (success) {
+		printf("llwrite(): Success\n");
+	} else {
+		printf("llwrite(): Failed to send packet\n");
+	}
 
 	return bytesWritten;
 }
@@ -349,10 +351,12 @@ int main(int argc, char** argv)
 		exit(-1);
 	}
 
-	if (-1 == llwrite(fd, msg, strlen(msg))) {
-		printf("llwrite() failed\n");
-		exit(-1);
-	}
+		if (-1 == llwrite(fd, msg, strlen(msg))) {
+			printf("llwrite() failed\n");
+			exit(-1);
+		}
+
+
 
   /*
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar
