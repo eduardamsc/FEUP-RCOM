@@ -211,7 +211,6 @@ int sendReady(int fd) {
 	return 0;
 }
 
-// TODO: Destuffing.
 int llread(int fd, char *buffer) {
 	bool end = false;
 	int bufferLength = 0, stuffedPacketLength = 0;
@@ -225,6 +224,7 @@ int llread(int fd, char *buffer) {
 	int ind = 0;
 
 	while (((res = read(fd,buf,1)) != -1) && end==false) {
+		printf("llread(): Read byte %x\n", buf[0]);
 		switch (state) {
 		case T_S1:
 			if (res != 0 && buf[0] == FLAG) {
