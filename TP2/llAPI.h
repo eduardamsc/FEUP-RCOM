@@ -51,7 +51,7 @@ enum State {
 enum Type {
   TRANSMITTER,
   RECEPTOR
-}
+};
 
 static bool timedOut = false;
 static int receivedSeqNum = -1;
@@ -528,7 +528,7 @@ printf("bl %x\n",bufferLength);
 int llclose_Transmitter(int fd) {
 	signal(SIGALRM, sigAlarmHandler);
 	int msgSize = 5;
-	char disc_msg[msgSize], ua_msg[discMsgSize];
+	char disc_msg[msgSize], ua_msg[msgSize];
 	bzero (disc_msg, msgSize);
 	bzero (ua_msg, msgSize);
 
@@ -549,7 +549,7 @@ int llclose_Transmitter(int fd) {
 		bool endRead = false;
 		enum State state = S1;
 		printf("llclose(): Sending DISC\n");
-		write(fd, disc_msg, discMsgSize);
+		write(fd, disc_msg, msgSize);
 		alarm(3);
 
 		char buf[1];
@@ -590,7 +590,7 @@ int llclose_Transmitter(int fd) {
 		}
 	} while (timedOut);
 
-	write(fd, ua_msg, uaMsgSize);
+	write(fd, ua_msg, msgSize);
 	printf("llclose(): Success\n");
 	return 0;
 }
@@ -598,7 +598,7 @@ int llclose_Transmitter(int fd) {
 int llclose_Receiver(int fd) {
 	signal(SIGALRM, sigAlarmHandler);
 	int msgSize = 5;
-	char disc_msg[msgSize], ua_msg[discMsgSize];
+	char disc_msg[msgSize], ua_msg[msgSize];
 	bzero (disc_msg, msgSize);
 	bzero (ua_msg, msgSize);
 
@@ -666,7 +666,7 @@ int llclose_Receiver(int fd) {
 		timedOut = false;
 		bool endRead = false;
 		enum State state = S1;
-		write(fd, disc_msg, discMsgSize);
+		write(fd, disc_msg, msgSize);
 		alarm(3);
 		printf("llclose(): Sending DISC\n");
 
