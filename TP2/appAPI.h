@@ -2,10 +2,10 @@
 
 int appRead(int port) {
   char filename[];
-  char
+  char *fileBuffer = NULL;
   llopen_read(port);
 
-
+  
 
   llclose_Receiver(port);
 

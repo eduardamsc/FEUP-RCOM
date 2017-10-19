@@ -1,4 +1,16 @@
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <strings.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define BAUDRATE B38400
 
 //TODO - Ns and Nr.
 #define FLAG 0x7E
@@ -55,10 +67,10 @@ enum Type {
 
 static bool timedOut = false;
 static int receivedSeqNum = -1;
+static struct termios oldtio;
 
 void sigAlarmHandler(int sig) {
 	timedOut = true;
-	printf("alarm, timedOut = %d\n", timedOut);
 }
 
 bool validBCC1(char response[]) {
@@ -98,7 +110,47 @@ int sendReady(int fd) {
 	return 0;
 }
 
-int llopen_read(int fd) {
+int setupConnection(char port[]) {
+
+	/*
+    Open serial port device for reading and writing and not as controlling tty
+    because we don't want to get killed if linenoise sends CTRL-C.
+  */
+
+	int fd = open(port, O_RDWR | O_NOCTTY );
+	if (fd <0) {perror(port); exit(-1); }
+
+	struct termios newtio;
+	if (tcgetattr(fd, &oldtio) == -1) { /* save current port settings */
+		perror("tcgetattr");
+		exit(-1);
+	}
+
+	bzero(&newtio, sizeof(newtio));
+	newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+	newtio.c_iflag = IGNPAR;
+	newtio.c_oflag = 0;
+
+	/* set input mode (non-canonical, no echo,...) */
+	newtio.c_lflag = 0;
+
+	newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
+	newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
+
+	tcflush(fd, TCIOFLUSH);
+
+	if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
+		perror("tcsetattr");
+		exit(-1);
+	}
+
+	printf("New termios structure set\n");
+
+	return fd;
+}
+
+int llopen_read(char port[]) {
+	int fd = setupConnection(port);
 	bool end = false;
 	int setMsgSize = 5;
 	char ua_msg[setMsgSize];
@@ -156,7 +208,8 @@ int llopen_read(int fd) {
 	return 0;
 }
 
-int llopen(int fd) {
+int llopen(char port[]) {
+	int fd = setupConnection(port);
 	signal(SIGALRM, sigAlarmHandler);
 	int setMsgSize = 5;
 	char set_msg[setMsgSize];
@@ -167,6 +220,8 @@ int llopen(int fd) {
 	set_msg[2] = C_SET;
 	set_msg[3] = A^C_SET;
 	set_msg[4] = FLAG;
+
+	int numTimeOuts = 0;
 
 	do {
 		timedOut = false;
@@ -212,11 +267,18 @@ int llopen(int fd) {
 				break;
 			}
 		}
-	} while (timedOut);
+		if (timedOut) {
+			numTimeOuts++;
+			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+		}
+	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
 
+	if (timedOut) {
+		printf("llopen(): Connection timed out\n");
+		return -1;
+	}
 	printf("llopen(): Success\n");
-
-	return 0;
+	return fd;
 }
 
 int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuffedPacketLength) {
@@ -711,6 +773,9 @@ int llclose_Receiver(int fd) {
 			}
 		}
 	} while (timedOut);
+
+	tcsetattr(fd,TCSANOW,&oldtio);
+	close(fd);
 
 	printf("llclose(): Success\n");
 	return 0;
