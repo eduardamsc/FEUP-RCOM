@@ -17,9 +17,21 @@ int main(int argc, char** argv) {
     }
 
     char *msg = NULL;
-    int fd = llopen_read(argv[1]);
-    llread(fd, msg);
-    llclose_Receiver(fd);
+    int fd;
+    if ((fd = llopen_read(argv[1])) == -1) {
+        printf("llopen() failed\n");
+        exit(-1);
+    }
+
+    if (llread(fd, msg) == -1) {
+        printf("llread() failed\n");
+        exit(-1);
+    }
+
+    if (llclose_Receiver(fd) == -1) {
+        printf("llclose_Transmitter() failed\n");;
+  		  exit(-1);
+    }
 
     return 0;
 }

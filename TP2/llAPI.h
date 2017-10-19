@@ -653,6 +653,10 @@ int llclose_Transmitter(int fd) {
 	} while (timedOut);
 
 	write(fd, ua_msg, msgSize);
+	if (tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+		perror("tcsetattr");
+		exit(-1);
+	}
 	printf("llclose(): Success\n");
 	return 0;
 }
@@ -721,9 +725,6 @@ int llclose_Receiver(int fd) {
 			}
 		}
 
-
-
-
 	do {
 		timedOut = false;
 		bool endRead = false;
@@ -774,7 +775,10 @@ int llclose_Receiver(int fd) {
 		}
 	} while (timedOut);
 
-	tcsetattr(fd,TCSANOW,&oldtio);
+	if (tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+		perror("tcsetattr");
+		exit(-1);
+	}
 	close(fd);
 
 	printf("llclose(): Success\n");

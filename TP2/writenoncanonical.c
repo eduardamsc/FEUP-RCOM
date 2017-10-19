@@ -36,11 +36,6 @@ int main(int argc, char** argv) {
   		exit(-1);
   	}
 
-    if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-
 
 
 
