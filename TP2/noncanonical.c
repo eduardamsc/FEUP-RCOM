@@ -81,7 +81,6 @@ int main(int argc, char** argv)
     newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
     newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
 
-
     tcflush(fd, TCIOFLUSH);
 
     if ( tcsetattr(fd,TCSANOW,&newtio) == -1) {
@@ -94,7 +93,6 @@ int main(int argc, char** argv)
     char *msg = NULL;
     llopen_read(fd);
     llread(fd, msg);
-
 
     tcsetattr(fd,TCSANOW,&oldtio);
     close(fd);
