@@ -199,8 +199,8 @@ int sendReady(int fd) {
 
 	response[0] = FLAG;
 	response[1] = A_RESP;
-	response[2] = C_REJ;
-	response[3] = A_RESP^C_REJ;
+	response[2] = C_RR;
+	response[3] = A_RESP^C_RR;
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
@@ -353,7 +353,7 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
     char *msg = NULL;
-  //  llopen(fd);
+    llopen(fd);
     llread(fd, msg);
 
 
