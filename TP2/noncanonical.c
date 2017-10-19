@@ -93,6 +93,7 @@ int main(int argc, char** argv)
     char *msg = NULL;
     llopen_read(fd);
     llread(fd, msg);
+    llclose_Receiver(fd);
 
     tcsetattr(fd,TCSANOW,&oldtio);
     close(fd);

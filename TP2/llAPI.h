@@ -594,3 +594,124 @@ int llclose_Transmitter(int fd) {
 	printf("llclose(): Success\n");
 	return 0;
 }
+
+int llclose_Receiver(int fd) {
+	signal(SIGALRM, sigAlarmHandler);
+	int msgSize = 5;
+	char disc_msg[msgSize], ua_msg[discMsgSize];
+	bzero (disc_msg, msgSize);
+	bzero (ua_msg, msgSize);
+
+	disc_msg[0] = FLAG;
+	disc_msg[1] = A;
+	disc_msg[2] = C_DISC;
+	disc_msg[3] = A^C_DISC;
+	disc_msg[4] = FLAG;
+
+	ua_msg[0] = FLAG;
+	ua_msg[1] = A;
+	ua_msg[2] = C_UA;
+	ua_msg[3] = A^C_UA;
+	ua_msg[4] = FLAG;
+
+
+		bool endRead = false;
+		enum State state = S1;
+
+		char buf[1];
+		buf[0] = 0;
+		int res = -1;
+		char response[3];
+		int ind = 0;
+		while (!endRead  && (res = read(fd,buf,1)) != -1) {
+			switch (state) {
+			case S1:
+				if (res != 0 && buf[0] == FLAG) {
+					state = S2;
+				}
+				break;
+			case S2:
+				if (res != 0 && buf[0] != FLAG) {
+					state = S3;
+				}
+				break;
+			case S3:
+				if (res != 0 && buf[0] == FLAG) {
+					state = END_READ;
+				}
+				response[ind] = buf[0];
+				if (ind == 3) {
+					if (!validBCC1(response)) {
+						printf("llclose(): Invalid DISC\n");
+						return -1;
+					}
+					if(response[2] != C_DISC){
+						printf("llclose(): Could not find DISC\n");
+						return -1;
+					}
+				}
+				ind++;
+				break;
+			case END_READ:
+				printf("llclose(): Received DISC\n");
+				endRead = true;
+				break;
+			}
+		}
+
+
+
+
+	do {
+		timedOut = false;
+		bool endRead = false;
+		enum State state = S1;
+		write(fd, disc_msg, discMsgSize);
+		alarm(3);
+		printf("llclose(): Sending DISC\n");
+
+		char buf[1];
+		buf[0] = 0;
+		int res = -1;
+		char response[3];
+		int ind = 0;
+		while (!endRead && !timedOut && (res = read(fd,buf,1)) != -1) {
+			switch (state) {
+			case S1:
+				if (res != 0 && buf[0] == FLAG) {
+					state = S2;
+				}
+				break;
+			case S2:
+				if (res != 0 && buf[0] != FLAG) {
+					state = S3;
+				}
+				break;
+			case S3:
+				if (res != 0 && buf[0] == FLAG) {
+					state = END_READ;
+				}
+				response[ind] = buf[0];
+				if (ind == 3) {
+					if (!validBCC1(response)) {
+						printf("llclose(): Invalid UA\n");
+						return -1;
+					}
+					if(response[2] != C_UA){
+						printf("llclose(): Could not find UA\n");
+						return -1;
+					}
+				}
+				ind++;
+				break;
+			case END_READ:
+				printf("llclose(): Received UA\n");
+				endRead = true;
+				break;
+			}
+		}
+	} while (timedOut);
+
+	printf("llclose(): Success\n");
+	return 0;
+}
