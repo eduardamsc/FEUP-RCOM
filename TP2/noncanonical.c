@@ -40,13 +40,20 @@ volatile int STOP=FALSE;
 
 #define TIMEOUT 3 //seconds
 
-enum State {
-	S1,
-	S2,
-	S3,
-	S4,
-	FOUND_ESC,
-	END_READ
+enum LLOpenState {
+	O_S1,
+	O_S2,
+	O_S3,
+	O_END_READ
+};
+
+enum TransfState {
+	T_S1,
+	T_S2,
+	T_S3,
+	T_S4,
+	T_FOUND_ESC,
+	T_END_READ
 };
 
 static bool timedOut = false;
@@ -84,7 +91,7 @@ int llopen(int fd) {
 	ua_msg[4] = FLAG;
 
 
-	enum State state = S1;
+	enum LLOpenState state = O_S1;
 	char buf[1];
 	buf[0] = 0;
 	int res = -1;
@@ -92,20 +99,20 @@ int llopen(int fd) {
 	int ind = 0;
 	while (((res = read(fd,buf,1)) != -1) && end==false) {
 		switch (state) {
-		case S1:
+		case O_S1:
 			if (res != 0 && buf[0] == FLAG) {
-				state = S2;
+				state = O_S2;
 			}
 			break;
-		case S2:
+		case O_S2:
 			if (res != 0 && buf[0] != FLAG) {
-				state = S3;
+				state = O_S3;
 				received[ind++] = buf[0];
 			}
 			break;
-		case S3:
+		case O_S3:
 			if (res != 0 && buf[0] == FLAG) {
-				state = END_READ;
+				state = O_END_READ;
 			}
 			received[ind] = buf[0];
 
@@ -117,7 +124,7 @@ int llopen(int fd) {
 			}
 			ind++;
 			break;
-		case END_READ:
+		case O_END_READ:
 			printf("llopen(): received SET\n");
 			end =true;
 			break;
@@ -159,20 +166,20 @@ printf("stuffedPacketLength %x\n",stuffedPacketLength);
 
 	for (int stuffedInd = 0, bufferInd = 0; bufferInd < stuffedPacketLength; stuffedInd++, bufferInd++) {
 		if (stuffedPacket[stuffedInd] == ESC) {
-			
+
 			if (stuffedPacket[stuffedInd+1] == 0x5e) {
 				(*buffer)[bufferInd] = FLAG;
-				
+
 				stuffedInd++;
 			}
 
 			if (stuffedPacket[stuffedInd+1] == 0x5d) {
 				(*buffer)[bufferInd] = ESC;
-				
+
 				stuffedInd++;
 			}
 		} else {
-			
+
 			(*buffer)[bufferInd] = stuffedPacket[stuffedInd];
 		}
 
@@ -210,7 +217,7 @@ int llread(int fd, char *buffer) {
 	int bufferLength = 0, stuffedPacketLength = 0;
 	char *stuffedPacket = NULL;
 
-	enum State state = S1;
+	enum TransfState state = T_S1;
 	char buf[1];
 	buf[0] = 0;
 	int res = -1;
@@ -219,18 +226,18 @@ int llread(int fd, char *buffer) {
 
 	while (((res = read(fd,buf,1)) != -1) && end==false) {
 		switch (state) {
-		case S1:
+		case T_S1:
 			if (res != 0 && buf[0] == FLAG) {
-				state = S2;
+				state = T_S2;
 			}
 			break;
-		case S2:
+		case T_S2:
 			if (res != 0 && buf[0] != FLAG) {
-				state = S3;
+				state = T_S3;
 				received[ind++] = buf[0];
 			}
 			break;
-		case S3:
+		case T_S3:
 			if (res != 0) {
 				received[ind] = buf[0];
 				if (ind == 3) {
@@ -239,18 +246,18 @@ int llread(int fd, char *buffer) {
 						return -1;
 					}
 					ind = 0;
-					state = S4;
+					state = T_S4;
 					break;
 				}
 				ind++;
 			}
 			break;
-		case S4:
+		case T_S4:
 			if (res != 0) {
 				if (buf[0] == ESC) {
-					state = FOUND_ESC;
+					state = T_FOUND_ESC;
 				} else if (buf[0] == FLAG) {
-					state = END_READ;
+					state = T_END_READ;
 				} else {
 					stuffedPacketLength++;
 					stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
@@ -258,15 +265,15 @@ int llread(int fd, char *buffer) {
 				}
 			}
 			break;
-		case FOUND_ESC:
+		case T_FOUND_ESC:
 			if (res != 0) {
 				stuffedPacketLength++;
 				stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
 				stuffedPacket[stuffedPacketLength - 1] = buf[0];
-				state = S4;
+				state = T_S4;
 			}
 			break;
-		case END_READ:
+		case T_END_READ:
 			printf("llread(): received I frame\n");
 			end = true;
 			break;
@@ -276,7 +283,7 @@ int llread(int fd, char *buffer) {
 	char BCC2 = stuffedPacket[stuffedPacketLength - 2];
 	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength - 2);
 	stuffedPacketLength -= 2;
-	
+
 	unstuffPacket(stuffedPacket, stuffedPacketLength, &buffer, &bufferLength);
 printf("bl %x\n",bufferLength);
 
@@ -294,7 +301,7 @@ printf("bl %x\n",bufferLength);
 		}
 		printf("llread(): Success\n");
 	}
-	
+
 	return bufferLength;
 }
 
@@ -303,8 +310,8 @@ int main(int argc, char** argv)
     int fd;
     struct termios oldtio,newtio;
 
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
+    if ( (argc < 2) ||
+  	     ((strcmp("/dev/ttyS0", argv[1])!=0) &&
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
@@ -315,8 +322,8 @@ int main(int argc, char** argv)
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-  
-    
+
+
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
 
@@ -346,7 +353,7 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    char *msg;
+    char *msg = NULL;
     llopen(fd);
     llread(fd, msg);
 
