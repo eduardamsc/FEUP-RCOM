@@ -48,6 +48,11 @@ enum State {
 	END_READ
 };
 
+enum Type {
+  TRANSMITTER,
+  RECEPTOR
+}
+
 static bool timedOut = false;
 static int receivedSeqNum = -1;
 
@@ -518,4 +523,8 @@ printf("bl %x\n",bufferLength);
 	}
 
 	return bufferLength;
+}
+
+int llclose(Type type, int fd) {
+  
 }
