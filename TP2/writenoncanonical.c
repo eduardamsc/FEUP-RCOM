@@ -10,7 +10,7 @@
 #include <strings.h>
 #include <string.h>
 #include <stdbool.h>
-#include "llAPI.h"
+#include "appAPI.h"
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
@@ -85,11 +85,15 @@ int main(int argc, char** argv)
 		exit(-1);
 	}
 
-		if (-1 == llwrite(fd, msg, strlen(msg))) {
-			printf("llwrite() failed\n");
-			exit(-1);
-		}
+	if (-1 == llwrite(fd, msg, strlen(msg))) {
+		printf("llwrite() failed\n");
+		exit(-1);
+	}
 
+	if (-1 == llclose_Transmitter(fd)) {
+		printf("llclose_Transmitter() failed\n");;
+		exit(-1);
+	}
 
 
   /*
