@@ -90,7 +90,6 @@ int llopen(int fd) {
 	ua_msg[3] = A_RESP^C_UA;
 	ua_msg[4] = FLAG;
 
-
 	enum LLOpenState state = O_S1;
 	char buf[1];
 	buf[0] = 0;
@@ -157,6 +156,7 @@ int sendRejection(int fd) {
 }
 
 int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char** buffer, int* bufferLength) {
+	*bufferLength=0;
 printf("stuffedPacketLength %x\n",stuffedPacketLength);
 	*buffer = realloc(*buffer, stuffedPacketLength);
 	if (*buffer == NULL) {
@@ -199,8 +199,8 @@ int sendReady(int fd) {
 
 	response[0] = FLAG;
 	response[1] = A_RESP;
-	response[2] = C_RR;
-	response[3] = A_RESP^C_RR;
+	response[2] = C_REJ;
+	response[3] = A_RESP^C_REJ;
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
@@ -240,7 +240,7 @@ int llread(int fd, char *buffer) {
 		case T_S3:
 			if (res != 0) {
 				received[ind] = buf[0];
-				if (ind == 3) {
+				if (ind == 2) {
 					if (!validBCC1(received)) {
 						printf("llread(): invalid SET\n");
 						return -1;
@@ -262,7 +262,7 @@ int llread(int fd, char *buffer) {
 					stuffedPacketLength++;
 					stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
 					stuffedPacket[stuffedPacketLength - 1] = buf[0];
-				}
+				printf("%x\n",buf[0]);}
 			}
 			break;
 		case T_FOUND_ESC:
@@ -280,14 +280,13 @@ int llread(int fd, char *buffer) {
 		}
 	}
 
-	char BCC2 = stuffedPacket[stuffedPacketLength - 2];
-	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength - 2);
-	stuffedPacketLength -= 2;
+	char BCC2 = stuffedPacket[stuffedPacketLength-1];
+	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength-1);
+	stuffedPacketLength--;
 
 	unstuffPacket(stuffedPacket, stuffedPacketLength, &buffer, &bufferLength);
 printf("bl %x\n",bufferLength);
-
-	if (!validBCC2(stuffedPacket[3], buffer, bufferLength, BCC2)) {
+	if (!validBCC2(received[2], buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd) == -1) {
 			printf("llread(): sendRejection error\n");
@@ -354,7 +353,7 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
     char *msg = NULL;
-    llopen(fd);
+  //  llopen(fd);
     llread(fd, msg);
 
 
