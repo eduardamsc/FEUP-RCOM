@@ -426,6 +426,7 @@ int llwrite(int fd, char *data, int dataLength) {
 		}
 		if (timedOut || rejected) {
 			numTimeOuts++;
+			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || rejected);
 
@@ -606,6 +607,8 @@ int llclose_Transmitter(int fd) {
 	ua_msg[3] = A^C_UA;
 	ua_msg[4] = FLAG;
 
+	int numTimeOuts = 0;
+
 	do {
 		timedOut = false;
 		bool endRead = false;
@@ -650,6 +653,10 @@ int llclose_Transmitter(int fd) {
 				break;
 			}
 		}
+		if (timedOut) {
+			numTimeOuts++;
+			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+		}
 	} while (timedOut);
 
 	write(fd, ua_msg, msgSize);
@@ -668,24 +675,23 @@ int llclose_Transmitter(int fd) {
 }
 
 int llclose_Receiver(int fd) {
-	signal(SIGALRM, sigAlarmHandler);
-	int msgSize = 5;
-	char disc_msg[msgSize], ua_msg[msgSize];
-	bzero (disc_msg, msgSize);
-	bzero (ua_msg, msgSize);
+		signal(SIGALRM, sigAlarmHandler);
+		int msgSize = 5;
+		char disc_msg[msgSize], ua_msg[msgSize];
+		bzero (disc_msg, msgSize);
+		bzero (ua_msg, msgSize);
 
-	disc_msg[0] = FLAG;
-	disc_msg[1] = A;
-	disc_msg[2] = C_DISC;
-	disc_msg[3] = A^C_DISC;
-	disc_msg[4] = FLAG;
+		disc_msg[0] = FLAG;
+		disc_msg[1] = A;
+		disc_msg[2] = C_DISC;
+		disc_msg[3] = A^C_DISC;
+		disc_msg[4] = FLAG;
 
-	ua_msg[0] = FLAG;
-	ua_msg[1] = A;
-	ua_msg[2] = C_UA;
-	ua_msg[3] = A^C_UA;
-	ua_msg[4] = FLAG;
-
+		ua_msg[0] = FLAG;
+		ua_msg[1] = A;
+		ua_msg[2] = C_UA;
+		ua_msg[3] = A^C_UA;
+		ua_msg[4] = FLAG;
 
 		bool endRead = false;
 		enum State state = S1;
@@ -730,6 +736,8 @@ int llclose_Receiver(int fd) {
 				break;
 			}
 		}
+
+	int numTimeOuts = 0;
 
 	do {
 		timedOut = false;
@@ -779,7 +787,11 @@ int llclose_Receiver(int fd) {
 				break;
 			}
 		}
-	} while (timedOut);
+		if (timedOut) {
+			numTimeOuts++;
+			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+		}
+	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
 
 	if (tcsetattr(fd,TCSANOW,&oldtio) == -1) {
 		perror("tcsetattr");
