@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     }
 
     if (llclose_Receiver(fd) == -1) {
-        printf("llclose_Transmitter() failed\n");;
+        printf("llclose_Receiver() failed\n");;
   		  exit(-1);
     }
 

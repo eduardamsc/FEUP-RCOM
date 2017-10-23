@@ -205,7 +205,7 @@ int llopen_read(char port[]) {
 	printf("sending UA\n");
 	write(fd, ua_msg, setMsgSize);
 	printf("llopen Success\n");
-	return 0;
+	return fd;
 }
 
 int llopen(char port[]) {
