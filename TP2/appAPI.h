@@ -168,7 +168,7 @@ int appRead(char port[]) {
 }
 
 int appWrite(char port[], char filename[]) {
-  llopen(port);
+  int portFd = llopen(port);
 
   int sz;
   int fd = open(filename,O_RDONLY);
@@ -185,6 +185,7 @@ int appWrite(char port[], char filename[]) {
   sz = ftell(fp);
 
   char startPacket[8 + strlen(filename)];
+  bzero(startPacket, 8 + strlen(filename));
   startPacket[0]=2;
   startPacket[1]=0;
   startPacket[2]=4;
@@ -196,10 +197,11 @@ int appWrite(char port[], char filename[]) {
   startPacket[8]=strlen(filename);
   strcpy(startPacket+9,filename);
 
-  llwrite(fd,startPacket,9+strlen(filename));
+  llwrite(portFd,startPacket,9+strlen(filename));
 
   while(read(fd,buffer,20)){
     char dataPacket[24];
+    bzero(dataPacket, 24);
 
     dataPacket[0] = 1;
     dataPacket[1] = n%255;
@@ -208,12 +210,13 @@ int appWrite(char port[], char filename[]) {
 
     strcpy(dataPacket+4, buffer);
 
-    llwrite(fd,dataPacket,28);
+    llwrite(portFd,dataPacket,24);
 
     n++;
   }
 
   char endPacket[8 + strlen(filename)];
+  bzero(endPacket, 8 + strlen(filename));
   endPacket[0]=3;
   endPacket[1]=0;
   endPacket[2]=4;
@@ -225,10 +228,8 @@ int appWrite(char port[], char filename[]) {
   endPacket[8]=strlen(filename);
   strcpy(endPacket+9,filename);
 
-  llwrite(fd,endPacket,9+strlen(filename));
+  llwrite(portFd,endPacket,9+strlen(filename));
 
-
-
-  llclose_Transmitter(fd);
+  llclose_Transmitter(portFd);
   return 0;
 }

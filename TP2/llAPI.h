@@ -117,7 +117,7 @@ int setupConnection(char port[]) {
     because we don't want to get killed if linenoise sends CTRL-C.
   */
 
-	int fd = open(port, O_RDWR | O_NOCTTY );
+	int fd = open(port, O_RDWR | O_NOCTTY, S_IRWXU | S_IRWXG | S_IRWXO);
 	if (fd <0) {perror(port); exit(-1); }
 
 	struct termios newtio;

@@ -18,27 +18,9 @@ int main(int argc, char** argv) {
       exit(1);
     }
 
-    int fd;
-  	char msg[] = "ab";
+  	char filename[] = "test.txt";
 
-  	if ((fd = llopen(argv[1])) == -1) {
-  		printf("llopen() failed\n");
-  		exit(-1);
-  	}
+  	appWrite(argv[1], filename);
 
-  	if (-1 == llwrite(fd, msg, strlen(msg))) {
-  		printf("llwrite() failed\n");
-  		exit(-1);
-  	}
-
-  	if (-1 == llclose_Transmitter(fd)) {
-  		printf("llclose_Transmitter() failed\n");;
-  		exit(-1);
-  	}
-
-
-
-
-    close(fd);
     return 0;
 }
