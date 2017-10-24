@@ -6,5 +6,9 @@ DEPS = llAPI.h
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 canonmake: noncanonical.c
-	gcc -o noncanonical noncanonical.c -I.
-	gcc -o writenoncanonical writenoncanonical.c -I.
+	gcc -Wall -o noncanonical noncanonical.c -I -std=c11.
+	gcc -Wall -o writenoncanonical writenoncanonical.c -I -std=c11.
+
+clean:
+	rm noncanonical
+	rm writenoncanonical

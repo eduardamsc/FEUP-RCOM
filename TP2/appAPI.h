@@ -17,8 +17,12 @@
 #define START_PACKET '2'
 #define END_PACKET '3'
 
-int readFileSize(char *fileSizeChars, int &fileLength, int arrayLength) {
-  scanf(fileSizeChars, "%d", fileLength);
+int readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
+  if (scanf(fileSizeChars, "%d", fileLength) == EOF) {
+    printf("readFileSize(): scanf failed.\n");
+    return -1;
+  }
+  return 0;
 }
 
 /**
@@ -37,8 +41,8 @@ int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
 
   int dataSize = 256 * packet[DATA_L2] + packet[DATA_L1];
   *fileBuffer = realloc(*fileBuffer, *fileBufferLength + dataSize);
-  while (int i = 0; i < dataSize; i++) {
-    (*fileBuffer)[fileBufferLength + i] = packet[DATA_P1 + i];
+  for (int i = 0; i < dataSize; i++) {
+    (*fileBuffer)[*fileBufferLength + i] = packet[DATA_P1 + i];
   }
   *fileBufferLength += dataSize;
 
@@ -49,7 +53,7 @@ int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
 /**
  * Reads file length and filename from packet, if they exist.
  */
-int processStartPacket(char *packet, int packetLength, int &fileLength, char **filename) {
+int processStartPacket(char *packet, int packetLength, int *fileLength, char **filename) {
   bool setName = false, setSize = false;
   int bytesRead = 1;
 
@@ -60,17 +64,17 @@ int processStartPacket(char *packet, int packetLength, int &fileLength, char **f
         if (setSize) {
           break;
         }
-        char *fileSizeChars = malloc(v1Length + 1);
-        memcpy(fileSizeChars, packet+V1_APP, v1Length);
-        fileSizeChars[v1Length] = '\0';
-        readFileSize(fileSizeChars, fileLength, v1Length);
+        char *fileSizeChars = malloc(vLength + 1);
+        memcpy(fileSizeChars, packet + bytesRead + TLV_V, vLength);
+        fileSizeChars[vLength] = '\0';
+        readFileSize(fileSizeChars, fileLength, vLength);
         setSize = true;
         break;
       case T_FILE_NAME:
         if (setName) {
           break;
         }
-        memcpy(filename, packet+V1_APP, v1Length);
+        memcpy(filename, packet + bytesRead + TLV_V, vLength);
         setName = true;
         break;
     }
@@ -85,9 +89,9 @@ int processStartPacket(char *packet, int packetLength, int &fileLength, char **f
   return 0;
 }
 
-int processEndPacket(char *startPacket, char *startPacket, int packetLength) {
+int processEndPacket(char *endPacket, char *startPacket, int packetLength) {
   for (int i = 0; i < packetLength; i++) {
-    if (startPacket[i] != startPacket[i]) {
+    if (endPacket[i] != startPacket[i]) {
       printf("processEndPacket(): End packet does not match start packet.\n");
       return -1;
     }
@@ -110,10 +114,11 @@ int writeLocalFile(char *filename, char *fileBuffer, int fileBufferLength) {
     printf("writeLocalFile(): File closing failed.\n");
     return -1;
   }
+  return 0;
 }
 
-int appRead(int port) {
-  char filename[];
+int appRead(char port[]) {
+  char *filename;
   char *fileBuffer = NULL, *packet = NULL, *startPacket = NULL;
   int fileBufferLength = 0;
   int fileLength = 0;
@@ -126,7 +131,7 @@ int appRead(int port) {
       printf("appRead(): llread() failed\n");
       return -1;
     }
-    switch (packet[C_APP])) {
+    switch (packet[C_APP]) {
       case DATA_PACKET:
         processDataPacket(packet, &fileBuffer, &fileBufferLength);
         break;
@@ -161,7 +166,7 @@ int appRead(int port) {
   return 0;
 }
 
-int appWrite(int port, char filename[]) {
+int appWrite(char port[], char filename[]) {
   llopen(port);
 
   int sz;
@@ -170,54 +175,59 @@ int appWrite(int port, char filename[]) {
   char buffer[20];
   char n = 0;
 
-  fseek(fd, 0L, SEEK_END);
-  sz = ftell(fd);
+  FILE *fp = fdopen(fd, "r");
+  if (fp == NULL) {
+    printf("fdopen failed.\n");
+    return -1;
+  }
+  fseek(fp, 0L, SEEK_END);
+  sz = ftell(fp);
 
-  char StartPacket[];
-  StartPacket[0]=2;
-  StartPacket[1]=0;
-  StartPacket[2]=4;
-  StartPacket[3]=(sz&OxFF000000)>>24;
-  StartPacket[4]=(sz&Ox00FF0000)>>16;
-  StartPacket[5]=(sz&Ox0000FF00)>>8;
-  StartPacket[6]=(sz&Ox000000FF);
-  StartPacket[7]=1;
-  StartPacket[8]=strlen(filename);
-  strcpy(StartPacket+9,filename);
+  char startPacket[8 + strlen(filename)];
+  startPacket[0]=2;
+  startPacket[1]=0;
+  startPacket[2]=4;
+  startPacket[3]=(sz&0xFF000000)>>24;
+  startPacket[4]=(sz&0x00FF0000)>>16;
+  startPacket[5]=(sz&0x0000FF00)>>8;
+  startPacket[6]=(sz&0x000000FF);
+  startPacket[7]=1;
+  startPacket[8]=strlen(filename);
+  strcpy(startPacket+9,filename);
 
-  llwrite(fd,StartPacket,9+strlen(filename));
+  llwrite(fd,startPacket,9+strlen(filename));
 
   while(read(fd,buffer,20)){
-    char DataPacket[24];
+    char dataPacket[24];
 
-    DataPacket[0] = 1;
-    DataPacket[1] = n%255;
-    DataPacket[2] = 0;
-    DataPacket[3] = 20;
+    dataPacket[0] = 1;
+    dataPacket[1] = n%255;
+    dataPacket[2] = 0;
+    dataPacket[3] = 20;
 
-    strcpy(DataPacket+4, buffer);
+    strcpy(dataPacket+4, buffer);
 
-    llwrite(fd,DataPacket,28);
+    llwrite(fd,dataPacket,28);
 
     n++;
   }
 
-  char EndPacket[];
-  EndPacket[0]=3;
-  EndPacket[1]=0;
-  EndPacket[2]=4;
-  EndPacket[3]=(sz&OxFF000000)>>24;
-  EndPacket[4]=(sz&Ox00FF0000)>>16;
-  EndPacket[5]=(sz&Ox0000FF00)>>8;
-  EndPacket[6]=(sz&Ox000000FF);
-  EndPacket[7]=1;
-  EndPacket[8]=strlen(filename);
-  strcpy(EndPacket+9,filename);
+  char endPacket[8 + strlen(filename)];
+  endPacket[0]=3;
+  endPacket[1]=0;
+  endPacket[2]=4;
+  endPacket[3]=(sz&0xFF000000)>>24;
+  endPacket[4]=(sz&0x00FF0000)>>16;
+  endPacket[5]=(sz&0x0000FF00)>>8;
+  endPacket[6]=(sz&0x000000FF);
+  endPacket[7]=1;
+  endPacket[8]=strlen(filename);
+  strcpy(endPacket+9,filename);
 
-  llwrite(fd,EndPacket,9+strlen(filename));
+  llwrite(fd,endPacket,9+strlen(filename));
 
 
 
-  llclose_Transmitter(port);
+  llclose_Transmitter(fd);
   return 0;
 }
