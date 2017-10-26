@@ -102,24 +102,21 @@ int processEndPacket(char *endPacket, char *startPacket, int packetLength) {
 }
 
 int writeLocalFile(char *filename, char *fileBuffer, int fileBufferLength) {
-  int fd = open(filename, O_CREAT | O_WRONLY, 0777);
-  if (fd == -1) {
-    perror("writeLocalFile - open");
-    //printf("writeLocalFile(): File creation failed.\n");
+  FILE *fp = fopen(filename,"wb");
+
+  if (fp == NULL) {
+    perror("writeLocalFile - fopen");
     return -1;
   }
-  int res = 0;
-  while ((res = write(fd, fileBuffer, fileBufferLength)) > 0) {
-    if (res == -1) {
-      perror("writeLocalFile - write");
-    }
-    // printf("writeLocalFile(): File write failed.\n");
-    close(fd);
+  
+  if (fwrite(fileBuffer, 1, fileBufferLength, fp) == -1) {
+    perror("writeLocalFile - write");
+    fclose(fp);
     return -1;
   }
-  if (close(fd) == -1) {
-    perror("writeLocalFile - close");
-    // printf("writeLocalFile(): File closing failed.\n");
+
+  if (fclose(fp) == EOF) {
+    perror("writeLocalFile - fclose");
     return -1;
   }
   return 0;
@@ -141,27 +138,20 @@ int appRead(char port[]) {
     }
     switch (packet[C_APP]) {
       case DATA_PACKET:
-        printf("Before processDataPacket\n");
         processDataPacket(packet, &fileBuffer, &fileBufferLength);
-        printf("After processDataPacket\n");
         break;
       case START_PACKET:
-        printf("Before processStartPacket\n");
         if (processStartPacket(packet, packetLength, &fileLength, &filename) == -1) {
-          printf("appRead(): processStartPacket failed.\n");
           return -1;
         }
-        printf("After processStartPacket\n");
         startPacket = malloc(packetLength);
         memcpy(startPacket, packet, packetLength);
         break;
       case END_PACKET:
-        printf("Before processEndPacket\n");
         if (processEndPacket(packet, startPacket, packetLength) == -1) {
           printf("appRead(): processEndPacket failed.\n");
           return -1;
         }
-        printf("After processEndPacket\n");
         finished = true;
         break;
     }
@@ -172,7 +162,7 @@ int appRead(char port[]) {
       return -1;
   }
 
-  if (writeLocalFile(filename, fileBuffer, fileLength) == -1) {
+  if (writeLocalFile(filename, fileBuffer, 9) == -1) {
     printf("appRead(): writeLocalFile() failed.\n");
     return -1;
   }

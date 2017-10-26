@@ -197,14 +197,20 @@ int llopen_read(char port[]) {
 			ind++;
 			break;
 		case O_END_READ:
+			#ifdef DEBUG
 			printf("llopen(): received SET\n");
-			end =true;
+			#endif
+			end = true;
 			break;
 		}
 	}
+	#ifdef DEBUG
 	printf("sending UA\n");
+	#endif
 	write(fd, ua_msg, setMsgSize);
+	#ifdef DEBUG
 	printf("llopen Success\n");
+	#endif
 	return fd;
 }
 
@@ -227,7 +233,9 @@ int llopen(char port[]) {
 		timedOut = false;
 		bool endRead = false;
 		enum State state = S1;
+		#ifdef DEBUG
 		printf("llopen(): Sending SET\n");
+		#endif
 		write(fd, set_msg, setMsgSize);
 		alarm(3);
 
@@ -262,7 +270,9 @@ int llopen(char port[]) {
 				ind++;
 				break;
 			case END_READ:
+				#ifdef DEBUG
 				printf("llopen(): Received UA\n");
+				#endif
 				endRead = true;
 				break;
 			}
@@ -333,13 +343,11 @@ int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int 
 }
 
 int sendFrame(int fd, char frame[], int stuffedPacketLength, int frameLength) {
-	printf("Frame addr = %p\n", frame);
 	if (write(fd, frame, frameLength) == -1) {
 		perror("sendFrame");
 		return -1;
 	}
 
-		printf("stuffedPacketLength = %d\n", stuffedPacketLength);
 	return stuffedPacketLength;
 }
 
@@ -349,7 +357,9 @@ int llwrite(int fd, char *data, int dataLength) {
 	char *stuffedData = NULL;
 	int stuffedDataLength = -1;
 	bool rejected = false;
+	#ifdef DEBUG
 	bool success = false;
+	#endif
 	int numTimeOuts = 0;
 	if (stuffPacket(data, dataLength, &stuffedData, &stuffedDataLength) == -1) {
 		printf("llwrite(): stuffPacket() failed\n");
@@ -363,7 +373,9 @@ int llwrite(int fd, char *data, int dataLength) {
 		rejected = false;
 		bool endRead = false;
 		enum State state = S1;
+		#ifdef DEBUG
 		printf("llwrite(): Computing and sending frame\n");
+		#endif
 		if (makeFrame(stuffedData, stuffedDataLength, &frame, &frameLength) == -1) {
 			printf("llwrite(): Error making frame\n");
 			return -1;
@@ -380,34 +392,37 @@ int llwrite(int fd, char *data, int dataLength) {
 		char response[3];
 		int ind = 0;
 		while (!endRead && !timedOut && !rejected && (res = read(fd,buf,1)) != -1) {
+			#ifdef DEBUG
 			printf("buf[0] = %x\n", buf[0]);
+			#endif
 			switch (state) {
 			case S1:
-				printf("In S1\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = S2;
 				}
 				break;
 			case S2:
-				printf("In S2\n");
 				if (res != 0 && buf[0] != FLAG) {
 					state = S3;
 					response[ind++] = buf[0];
 				}
 				break;
 			case S3:
-				printf("In S3\n");
 				if (res != 0 && buf[0] == FLAG) {
 					state = END_READ;
 				}
 				response[ind] = buf[0];
 				if (ind == 2) {
 					if (!validBCC1(response)) {
+						#ifdef DEBUG
 						printf("llwrite(): Invalid response\n");
+						#endif
 						return -1;
 					}
 					if (isRejected(response)) {
+						#ifdef DEBUG
 						printf("llwrite(): Rejected frame\n");
+						#endif
 						rejected = true;
 						break;
 					}
@@ -420,10 +435,14 @@ int llwrite(int fd, char *data, int dataLength) {
 				break;
 			case END_READ:
 				alarm(0);
+				#ifdef DEBUG
 				printf("llwrite(): Received response\n");
+				#endif
 				receivedSeqNum = S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP]);
 				endRead = true;
+				#ifdef DEBUG
 				success = true;
+				#endif
 				break;
 			}
 		}
@@ -433,11 +452,13 @@ int llwrite(int fd, char *data, int dataLength) {
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || rejected);
 
+	#ifdef DEBUG
 	if (success) {
 		printf("llwrite(): Success\n");
 	} else {
 		printf("llwrite(): Failed to send packet\n");
 	}
+	#endif
 
 	return bytesWritten;
 }
@@ -464,7 +485,6 @@ int sendRejection(int fd) {
 
 int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char *buffer[], int *bufferLength) {
 	*bufferLength = 0;
-	printf("unstuffPacket(): stuffedPacketLength = %d\n", stuffedPacketLength);
 	*buffer = malloc(stuffedPacketLength);
 	if (*buffer == NULL) {
 		printf("unstuffPacket(): first realloc() failed\n");
@@ -508,7 +528,9 @@ int llread(int fd, char **buffer) {
 	int ind = 0;
 
 	while (((res = read(fd,buf,1)) != -1) && end==false) {
+		#ifdef DEBUG
 		printf("llread(): Read byte %x\n", buf[0]);
+		#endif
 		switch (state) {
 		case T_S1:
 			if (res != 0 && buf[0] == FLAG) {
@@ -526,7 +548,9 @@ int llread(int fd, char **buffer) {
 				received[ind] = buf[0];
 				if (ind == 2) {
 					if (!validBCC1(received)) {
+						#ifdef DEBUG
 						printf("llread(): invalid SET\n");
+						#endif
 						return -1;
 					}
 					ind = 0;
@@ -546,7 +570,7 @@ int llread(int fd, char **buffer) {
 					stuffedPacketLength++;
 					stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
 					stuffedPacket[stuffedPacketLength - 1] = buf[0];
-					printf("%x\n",buf[0]);}
+				}
 			}
 			break;
 		case T_FOUND_ESC:
@@ -564,12 +588,9 @@ int llread(int fd, char **buffer) {
 		}
 	}
 
-	printf("before bcc2\n");
 	char BCC2 = stuffedPacket[stuffedPacketLength-1];
-	printf("after bcc2\n");
 	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength-1);
 	stuffedPacketLength--;
-	printf("after realloc\n");
 
 	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
 	if (!validBCC2(received[2], *buffer, bufferLength, BCC2)) {
@@ -579,12 +600,16 @@ int llread(int fd, char **buffer) {
 			return -1;
 		}
 	} else {
+		#ifdef DEBUG
 		printf("llread(): Sending RR\n");
+		#endif
 		if (sendReady(fd) == -1) {
 			printf("llread(): sendReady error\n");
 			return -1;
 		}
+		#ifdef DEBUG
 		printf("llread(): Success\n");
+		#endif
 	}
 
 	return bufferLength;
@@ -615,7 +640,9 @@ int llclose_Transmitter(int fd) {
 		timedOut = false;
 		bool endRead = false;
 		enum State state = S1;
+		#ifdef DEBUG
 		printf("llclose(): Sending DISC\n");
+		#endif
 		write(fd, disc_msg, msgSize);
 		alarm(3);
 
@@ -650,7 +677,9 @@ int llclose_Transmitter(int fd) {
 				ind++;
 				break;
 			case END_READ:
+				#ifdef DEBUG
 				printf("llclose(): Received DISC\n");
+				#endif
 				endRead = true;
 				break;
 			}
@@ -672,7 +701,9 @@ int llclose_Transmitter(int fd) {
 		return -1;
 	}
 
+	#ifdef DEBUG
 	printf("llclose(): Success\n");
+	#endif
 	return 0;
 }
 
