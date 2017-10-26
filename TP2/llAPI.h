@@ -283,7 +283,7 @@ int llopen(char port[]) {
 
 int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuffedPacketLength) {
 	*stuffedPacketLength = 0;
-	*stuffedPacket = realloc(NULL, packetLength);
+	*stuffedPacket = malloc(packetLength);
 	if (*stuffedPacket == NULL) {
 		printf("stuffPacket(): first realloc() failed\n");
 		return -1;
@@ -462,31 +462,28 @@ int sendRejection(int fd) {
 	return 0;
 }
 
-int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char *buffer[], int* bufferLength) {
-	*bufferLength=0;
-	printf("unstuffPacket(): stuffedPacketLength = %d\n",stuffedPacketLength);
-	*buffer = realloc(NULL, stuffedPacketLength);
+int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char *buffer[], int *bufferLength) {
+	*bufferLength = 0;
+	printf("unstuffPacket(): stuffedPacketLength = %d\n", stuffedPacketLength);
+	*buffer = malloc(stuffedPacketLength);
 	if (*buffer == NULL) {
 		printf("unstuffPacket(): first realloc() failed\n");
 		return -1;
 	}
 
-	for (int stuffedInd = 0, bufferInd = 0; bufferInd < stuffedPacketLength; stuffedInd++, bufferInd++) {
+	for (int stuffedInd = 0, bufferInd = 0; stuffedInd < stuffedPacketLength; stuffedInd++, bufferInd++) {
 		if (stuffedPacket[stuffedInd] == ESC) {
-
-			if (stuffedPacket[stuffedInd+1] == 0x5e) {
-				(*buffer)[bufferInd] = FLAG;
-
-				stuffedInd++;
-			}
-
-			if (stuffedPacket[stuffedInd+1] == 0x5d) {
-				(*buffer)[bufferInd] = ESC;
-
-				stuffedInd++;
+			switch (stuffedPacket[stuffedInd + 1]) {
+				case 0x5E:
+					(*buffer)[bufferInd] = FLAG;
+					stuffedInd++;
+					break;
+				case 0x5D:
+					(*buffer)[bufferInd] = ESC;
+					stuffedInd++;
+					break;
 			}
 		} else {
-
 			(*buffer)[bufferInd] = stuffedPacket[stuffedInd];
 		}
 
