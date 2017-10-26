@@ -216,7 +216,6 @@ int llopen_read(char port[]) {
 
 int llopen(char port[]) {
 	int fd = setupConnection(port);
-	signal(SIGALRM, sigAlarmHandler);
 	int setMsgSize = 5;
 	char set_msg[setMsgSize];
 	bzero(set_msg, setMsgSize);
@@ -237,6 +236,7 @@ int llopen(char port[]) {
 		printf("llopen(): Sending SET\n");
 		#endif
 		write(fd, set_msg, setMsgSize);
+		signal(SIGALRM, sigAlarmHandler);
 		alarm(3);
 
 		char buf[1];
@@ -352,7 +352,6 @@ int sendFrame(int fd, char frame[], int stuffedPacketLength, int frameLength) {
 }
 
 int llwrite(int fd, char *data, int dataLength) {
-	signal(SIGALRM, sigAlarmHandler);
 	int bytesWritten = 0;
 	char *stuffedData = NULL;
 	int stuffedDataLength = -1;
@@ -384,6 +383,7 @@ int llwrite(int fd, char *data, int dataLength) {
 			printf("llwrite(): Error sending frame\n");
 			return -1;
 		}
+		signal(SIGALRM, sigAlarmHandler);
 		alarm(3);
 
 		char buf[1];
@@ -428,7 +428,6 @@ int llwrite(int fd, char *data, int dataLength) {
 					}
 					if (receivedSeqNum == S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP])) {
 						printf("llwrite(): Frame received out of order\n");
-
 					}
 				}
 				ind++;
@@ -621,7 +620,6 @@ int llread(int fd, char **buffer) {
 }
 
 int llclose_Transmitter(int fd) {
-	signal(SIGALRM, sigAlarmHandler);
 	int msgSize = 5;
 	char disc_msg[msgSize], ua_msg[msgSize];
 	bzero (disc_msg, msgSize);
@@ -649,6 +647,7 @@ int llclose_Transmitter(int fd) {
 		printf("llclose(): Sending DISC\n");
 		#endif
 		write(fd, disc_msg, msgSize);
+		signal(SIGALRM, sigAlarmHandler);
 		alarm(3);
 
 		char buf[1];
@@ -713,7 +712,6 @@ int llclose_Transmitter(int fd) {
 }
 
 int llclose_Receiver(int fd) {
-		signal(SIGALRM, sigAlarmHandler);
 		int msgSize = 5;
 		char disc_msg[msgSize], ua_msg[msgSize];
 		bzero (disc_msg, msgSize);
@@ -782,6 +780,7 @@ int llclose_Receiver(int fd) {
 		bool endRead = false;
 		enum State state = S1;
 		write(fd, disc_msg, msgSize);
+		signal(SIGALRM, sigAlarmHandler);
 		alarm(3);
 		printf("llclose(): Sending DISC\n");
 
