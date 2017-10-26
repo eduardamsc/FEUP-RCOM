@@ -294,9 +294,12 @@ int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stu
 			(*stuffedPacket)[stuffedInd++] = ESC;
 			(*stuffedPacketLength)++;
 			*stuffedPacket = realloc(*stuffedPacket, *stuffedPacketLength);
+			(*stuffedPacket)[stuffedInd] = packet[unstuffedInd] ^ 0x20;
+			(*stuffedPacketLength)++;
+		} else {
+			(*stuffedPacket)[stuffedInd] = packet[unstuffedInd];
+			(*stuffedPacketLength)++;
 		}
-		(*stuffedPacket)[stuffedInd] = packet[unstuffedInd] ^ 0x20;
-		(*stuffedPacketLength)++;
 	}
 	return 0;
 }
