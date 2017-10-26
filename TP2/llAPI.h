@@ -461,7 +461,7 @@ int sendRejection(int fd) {
 
 int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char** buffer, int* bufferLength) {
 	*bufferLength=0;
-	printf("stuffedPacketLength %x\n",stuffedPacketLength);
+	printf("unstuffPacket(): stuffedPacketLength = %d\n",stuffedPacketLength);
 	*buffer = realloc(*buffer, stuffedPacketLength);
 	if (*buffer == NULL) {
 		printf("unstuffPacket(): first realloc() failed\n");
