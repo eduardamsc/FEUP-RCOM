@@ -572,7 +572,6 @@ int llread(int fd, char **buffer) {
 	printf("after realloc\n");
 
 	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
-printf("bl %x\n",bufferLength);
 	if (!validBCC2(received[2], *buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd) == -1) {

@@ -11,12 +11,12 @@
 #define DATA_L1 3
 #define DATA_P1 4
 
-#define T_FILE_SIZE '0'
-#define T_FILE_NAME '1'
+#define T_FILE_SIZE 0
+#define T_FILE_NAME 1
 
-#define DATA_PACKET '1'
-#define START_PACKET '2'
-#define END_PACKET '3'
+#define DATA_PACKET 1
+#define START_PACKET 2
+#define END_PACKET 3
 
 int readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
   if (scanf(fileSizeChars, "%d", fileLength) == EOF) {
@@ -134,21 +134,27 @@ int appRead(char port[]) {
     }
     switch (packet[C_APP]) {
       case DATA_PACKET:
+        printf("Before processDataPacket\n");
         processDataPacket(packet, &fileBuffer, &fileBufferLength);
+        printf("After processDataPacket\n");
         break;
       case START_PACKET:
+        printf("Before processStartPacket\n");
         if (processStartPacket(packet, packetLength, &fileLength, &filename) == -1) {
           printf("appRead(): processStartPacket failed.\n");
           return -1;
         }
+        printf("After processStartPacket\n");
         startPacket = malloc(packetLength);
         memcpy(startPacket, packet, packetLength);
         break;
       case END_PACKET:
+        printf("Before processEndPacket\n");
         if (processEndPacket(packet, startPacket, packetLength) == -1) {
           printf("appRead(): processEndPacket failed.\n");
           return -1;
         }
+        printf("After processEndPacket\n");
         finished = true;
         break;
     }
@@ -176,30 +182,21 @@ int appWrite(char port[], char filename[]) {
   char buffer[20];
   char n = 0;
 
-  // FILE *fp = fdopen(fd, "r");
-  // if (fp == NULL) {
-  //   printf("fdopen failed.\n");
-  //   return -1;
-  // }
-  // fseek(fp, 0L, SEEK_END);
-  // sz = ftell(fp);
-  // rewind(fp);
-
   struct stat statBuf;
   fstat(fd, &statBuf);
   fileSize = statBuf.st_size;
 
   char startPacket[9 + strlen(filename)];
   bzero(startPacket, 9 + strlen(filename));
-  startPacket[0]=2;
-  startPacket[1]=0;
-  startPacket[2]=4;
-  startPacket[3]=(fileSize & 0xFF000000)>>24;
-  startPacket[4]=(fileSize & 0x00FF0000)>>16;
-  startPacket[5]=(fileSize & 0x0000FF00)>>8;
-  startPacket[6]=(fileSize & 0x000000FF);
-  startPacket[7]=1;
-  startPacket[8]=strlen(filename);
+  startPacket[0] = START_PACKET;
+  startPacket[1] = 0;
+  startPacket[2] = 4;
+  startPacket[3] = (fileSize & 0xFF000000)>>24;
+  startPacket[4] = (fileSize & 0x00FF0000)>>16;
+  startPacket[5] = (fileSize & 0x0000FF00)>>8;
+  startPacket[6] = (fileSize & 0x000000FF);
+  startPacket[7] = 1;
+  startPacket[8] = strlen(filename);
   strncpy(startPacket + 9,filename, strlen(filename));
 
   llwrite(portFd,startPacket,9+strlen(filename));
@@ -209,7 +206,7 @@ int appWrite(char port[], char filename[]) {
     char dataPacket[24];
     bzero(dataPacket, 24);
 
-    dataPacket[0] = 1;
+    dataPacket[0] = DATA_PACKET;
     dataPacket[1] = n%255;
     dataPacket[2] = 0;
     dataPacket[3] = 20;
@@ -223,16 +220,16 @@ int appWrite(char port[], char filename[]) {
 
   char endPacket[9 + strlen(filename)];
   bzero(endPacket, 9 + strlen(filename));
-  endPacket[0]=3;
-  endPacket[1]=0;
-  endPacket[2]=4;
-  endPacket[3]=(fileSize & 0xFF000000)>>24;
-  endPacket[4]=(fileSize & 0x00FF0000)>>16;
-  endPacket[5]=(fileSize & 0x0000FF00)>>8;
-  endPacket[6]=(fileSize & 0x000000FF);
-  endPacket[7]=1;
-  endPacket[8]=strlen(filename);
-  strncpy(endPacket + 9,filename, strlen(filename));
+  endPacket[0] = END_PACKET;
+  endPacket[1] = 0;
+  endPacket[2] = 4;
+  endPacket[3] = (fileSize & 0xFF000000) >> 24;
+  endPacket[4] = (fileSize & 0x00FF0000) >> 16;
+  endPacket[5] = (fileSize & 0x0000FF00) >> 8;
+  endPacket[6] = (fileSize & 0x000000FF);
+  endPacket[7] = 1;
+  endPacket[8] = strlen(filename);
+  strncpy(endPacket + 9, filename, strlen(filename));
 
   llwrite(portFd,endPacket,9+strlen(filename));
 
