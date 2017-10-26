@@ -461,7 +461,7 @@ int sendRejection(int fd) {
 
 int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char** buffer, int* bufferLength) {
 	*bufferLength=0;
-printf("stuffedPacketLength %x\n",stuffedPacketLength);
+	printf("stuffedPacketLength %x\n",stuffedPacketLength);
 	*buffer = realloc(*buffer, stuffedPacketLength);
 	if (*buffer == NULL) {
 		printf("unstuffPacket(): first realloc() failed\n");
@@ -546,7 +546,7 @@ int llread(int fd, char **buffer) {
 					stuffedPacketLength++;
 					stuffedPacket = realloc(stuffedPacket, stuffedPacketLength);
 					stuffedPacket[stuffedPacketLength - 1] = buf[0];
-				printf("%x\n",buf[0]);}
+					printf("%x\n",buf[0]);}
 			}
 			break;
 		case T_FOUND_ESC:

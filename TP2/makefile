@@ -5,13 +5,17 @@ DEPS = llAPI.h
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-canonmake: noncanonical.c
+prod: noncanonical.c writenoncanonical.c
 	gcc -Wall -o noncanonical noncanonical.c -std=c11
 	gcc -Wall -o writenoncanonical writenoncanonical.c -std=c11
 
-debug: noncanonical.c
+debug: noncanonical.c writenoncanonical.c
 		gcc -g -Wall -o noncanonical noncanonical.c -std=c11
 		gcc -g -Wall -o writenoncanonical writenoncanonical.c -std=c11
+
+test: llReadTest.c llWriteTest.c
+		gcc -g -Wall llReadTest.c -o llReadTest -std=c11
+		gcc -g -Wall llWriteTest.c -o llWriteTest -std=c11
 
 clean:
 	rm noncanonical
