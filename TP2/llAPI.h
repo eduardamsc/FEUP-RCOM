@@ -446,9 +446,14 @@ int llwrite(int fd, char *data, int dataLength) {
 				break;
 			}
 		}
-		if (timedOut || rejected) {
+		if (timedOut) {
 			numTimeOuts++;
 			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+			continue;
+		}
+		if (rejected) {
+			printf("Packet rejected, resending.\n");
+			continue;
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || rejected);
 

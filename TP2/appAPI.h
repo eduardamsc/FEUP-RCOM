@@ -108,7 +108,7 @@ int writeLocalFile(char *filename, char *fileBuffer, int fileBufferLength) {
     perror("writeLocalFile - fopen");
     return -1;
   }
-  
+
   if (fwrite(fileBuffer, 1, fileBufferLength, fp) == -1) {
     perror("writeLocalFile - write");
     fclose(fp);
@@ -162,7 +162,7 @@ int appRead(char port[]) {
       return -1;
   }
 
-  if (writeLocalFile(filename, fileBuffer, 9) == -1) {
+  if (writeLocalFile(filename, fileBuffer, fileBufferLength) == -1) {
     printf("appRead(): writeLocalFile() failed.\n");
     return -1;
   }
