@@ -128,7 +128,7 @@ int appRead(char port[]) {
   int fd = llopen_read(port);
 
   while (!finished) {
-    if ((packetLength = llread(fd, packet)) == -1) {
+    if ((packetLength = llread(fd, &packet)) == -1) {
       printf("appRead(): llread() failed\n");
       return -1;
     }
@@ -183,9 +183,10 @@ int appWrite(char port[], char filename[]) {
   }
   fseek(fp, 0L, SEEK_END);
   sz = ftell(fp);
+  rewind(fp);
 
-  char startPacket[8 + strlen(filename)];
-  bzero(startPacket, 8 + strlen(filename));
+  char startPacket[9 + strlen(filename)];
+  bzero(startPacket, 9 + strlen(filename));
   startPacket[0]=2;
   startPacket[1]=0;
   startPacket[2]=4;
@@ -195,11 +196,14 @@ int appWrite(char port[], char filename[]) {
   startPacket[6]=(sz&0x000000FF);
   startPacket[7]=1;
   startPacket[8]=strlen(filename);
-  strcpy(startPacket+9,filename);
+  strncpy(startPacket + 9,filename, strlen(filename));
 
   llwrite(portFd,startPacket,9+strlen(filename));
 
-  while(read(fd,buffer,20)){
+  struct stat statBuf;
+  fstat(fd, &statBuf);
+  int readRes = -2;
+  while (readRes = read(fd,buffer,20)){
     char dataPacket[24];
     bzero(dataPacket, 24);
 
@@ -215,8 +219,8 @@ int appWrite(char port[], char filename[]) {
     n++;
   }
 
-  char endPacket[8 + strlen(filename)];
-  bzero(endPacket, 8 + strlen(filename));
+  char endPacket[9 + strlen(filename)];
+  bzero(endPacket, 9 + strlen(filename));
   endPacket[0]=3;
   endPacket[1]=0;
   endPacket[2]=4;
@@ -226,7 +230,7 @@ int appWrite(char port[], char filename[]) {
   endPacket[6]=(sz&0x000000FF);
   endPacket[7]=1;
   endPacket[8]=strlen(filename);
-  strcpy(endPacket+9,filename);
+  strncpy(endPacket + 9,filename, strlen(filename));
 
   llwrite(portFd,endPacket,9+strlen(filename));
 

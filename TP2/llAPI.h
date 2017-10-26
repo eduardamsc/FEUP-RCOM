@@ -495,7 +495,7 @@ printf("stuffedPacketLength %x\n",stuffedPacketLength);
 	return 0;
 }
 
-int llread(int fd, char *buffer) {
+int llread(int fd, char **buffer) {
 	bool end = false;
 	int bufferLength = 0, stuffedPacketLength = 0;
 	char *stuffedPacket = NULL;
@@ -564,13 +564,16 @@ int llread(int fd, char *buffer) {
 		}
 	}
 
+	printf("before bcc2\n");
 	char BCC2 = stuffedPacket[stuffedPacketLength-1];
+	printf("after bcc2\n");
 	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength-1);
 	stuffedPacketLength--;
+	printf("after realloc\n");
 
-	unstuffPacket(stuffedPacket, stuffedPacketLength, &buffer, &bufferLength);
+	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
 printf("bl %x\n",bufferLength);
-	if (!validBCC2(received[2], buffer, bufferLength, BCC2)) {
+	if (!validBCC2(received[2], *buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd) == -1) {
 			printf("llread(): sendRejection error\n");
