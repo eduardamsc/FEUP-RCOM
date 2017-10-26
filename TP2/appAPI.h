@@ -170,38 +170,40 @@ int appRead(char port[]) {
 int appWrite(char port[], char filename[]) {
   int portFd = llopen(port);
 
-  int sz;
+  int fileSize = -1;
   int fd = open(filename,O_RDONLY);
 
   char buffer[20];
   char n = 0;
 
-  FILE *fp = fdopen(fd, "r");
-  if (fp == NULL) {
-    printf("fdopen failed.\n");
-    return -1;
-  }
-  fseek(fp, 0L, SEEK_END);
-  sz = ftell(fp);
-  rewind(fp);
+  // FILE *fp = fdopen(fd, "r");
+  // if (fp == NULL) {
+  //   printf("fdopen failed.\n");
+  //   return -1;
+  // }
+  // fseek(fp, 0L, SEEK_END);
+  // sz = ftell(fp);
+  // rewind(fp);
+
+  struct stat statBuf;
+  fstat(fd, &statBuf);
+  fileSize = statBuf.st_size;
 
   char startPacket[9 + strlen(filename)];
   bzero(startPacket, 9 + strlen(filename));
   startPacket[0]=2;
   startPacket[1]=0;
   startPacket[2]=4;
-  startPacket[3]=(sz&0xFF000000)>>24;
-  startPacket[4]=(sz&0x00FF0000)>>16;
-  startPacket[5]=(sz&0x0000FF00)>>8;
-  startPacket[6]=(sz&0x000000FF);
+  startPacket[3]=(fileSize & 0xFF000000)>>24;
+  startPacket[4]=(fileSize & 0x00FF0000)>>16;
+  startPacket[5]=(fileSize & 0x0000FF00)>>8;
+  startPacket[6]=(fileSize & 0x000000FF);
   startPacket[7]=1;
   startPacket[8]=strlen(filename);
   strncpy(startPacket + 9,filename, strlen(filename));
 
   llwrite(portFd,startPacket,9+strlen(filename));
 
-  struct stat statBuf;
-  fstat(fd, &statBuf);
   int readRes = -2;
   while (readRes = read(fd,buffer,20)){
     char dataPacket[24];
@@ -224,10 +226,10 @@ int appWrite(char port[], char filename[]) {
   endPacket[0]=3;
   endPacket[1]=0;
   endPacket[2]=4;
-  endPacket[3]=(sz&0xFF000000)>>24;
-  endPacket[4]=(sz&0x00FF0000)>>16;
-  endPacket[5]=(sz&0x0000FF00)>>8;
-  endPacket[6]=(sz&0x000000FF);
+  endPacket[3]=(fileSize & 0xFF000000)>>24;
+  endPacket[4]=(fileSize & 0x00FF0000)>>16;
+  endPacket[5]=(fileSize & 0x0000FF00)>>8;
+  endPacket[6]=(fileSize & 0x000000FF);
   endPacket[7]=1;
   endPacket[8]=strlen(filename);
   strncpy(endPacket + 9,filename, strlen(filename));
