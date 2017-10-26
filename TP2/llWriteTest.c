@@ -5,6 +5,6 @@ int main() {
 
   char msg[] = "abc";
   int fd = llopen(port);
-  int bytesWritten = llwrite(fd, abc, strlen(msg));
+  int bytesWritten = llwrite(fd, msg, strlen(msg));
   printf("Bytes written = %d\n", bytesWritten);
 }
