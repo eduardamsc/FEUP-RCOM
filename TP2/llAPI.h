@@ -283,7 +283,7 @@ int llopen(char port[]) {
 
 int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuffedPacketLength) {
 	*stuffedPacketLength = 0;
-	*stuffedPacket = realloc(*stuffedPacket, packetLength);
+	*stuffedPacket = realloc(NULL, packetLength);
 	if (*stuffedPacket == NULL) {
 		printf("stuffPacket(): first realloc() failed\n");
 		return -1;
@@ -459,10 +459,10 @@ int sendRejection(int fd) {
 	return 0;
 }
 
-int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char** buffer, int* bufferLength) {
+int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char *buffer[], int* bufferLength) {
 	*bufferLength=0;
 	printf("unstuffPacket(): stuffedPacketLength = %d\n",stuffedPacketLength);
-	*buffer = realloc(*buffer, stuffedPacketLength);
+	*buffer = realloc(NULL, stuffedPacketLength);
 	if (*buffer == NULL) {
 		printf("unstuffPacket(): first realloc() failed\n");
 		return -1;
