@@ -189,9 +189,6 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
-  char buffer[20];
-  char n = 0;
-
   struct stat statBuf;
   stat(filename, &statBuf);
   fileSize = statBuf.st_size;
@@ -216,6 +213,8 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
+  char buffer[0xFF];
+  char n = 0;
   int bytesRead = -2;
   while (bytesRead = fread(buffer, 1, 0xFF, fp)) {
     char dataPacket[bytesRead + 4];
