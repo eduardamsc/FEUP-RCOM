@@ -211,19 +211,19 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
-  int readRes = -2;
-  while (readRes = fread(buffer, 0xFF, 1, fp)) {
-    char dataPacket[0xFF + 4];
-    bzero(dataPacket, 24);
+  int bytesRead = -2;
+  while (bytesRead = fread(buffer, 1, 0xFF, fp)) {
+    char dataPacket[bytesRead + 4];
+    bzero(dataPacket, bytesRead + 4);
 
     dataPacket[0] = DATA_PACKET;
     dataPacket[1] = n % 255;
     dataPacket[2] = 0;
-    dataPacket[3] = 0xFF;
+    dataPacket[3] = bytesRead;
 
-    strcpy(dataPacket + 4, buffer);
+    strncpy(dataPacket + 4, buffer, bytesRead);
 
-    if (llwrite(portFd, dataPacket, 0xFF + 4) == -1) {
+    if (llwrite(portFd, dataPacket, bytesRead + 4) == -1) {
       #ifdef DEBUG
       printf("appWrite(): Failed to send data packet.\n");
       #endif
