@@ -36,6 +36,7 @@
 
 #define TIMEOUT 3 //seconds
 #define MAX_TIME_OUTS 5 // attempts
+#define MAX_REJS 5 //attempts
 
 enum LLOpenState {
 	O_S1,
@@ -77,13 +78,13 @@ bool validBCC1(char response[]) {
 	return (response[BCC_IND_RESP] == (response[A_IND_RESP] ^ response[C_IND_RESP]));
 }
 
-bool validBCC2(char BCC1, char* buffer, int bufferLength, char BCC2) {
-	char aux=BCC1;
-	for (int i=0; i<bufferLength; i++) {
-		aux^=buffer[i];
+bool validBCC2(char *buffer, int bufferLength, char BCC2) {
+	char aux = 0;
+	for (int i = 0; i < bufferLength; i++) {
+		aux ^= buffer[i];
 	}
 
-	return aux==BCC2;
+	return aux == BCC2;
 }
 
 bool isRejected(char response[]) {
@@ -314,12 +315,12 @@ int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stu
 	return 0;
 }
 
-char calculateBCC2(char BCC1, char stuffedPacket[], int stuffedPacketLength) {
+char calculateBCC2(char stuffedPacket[], int stuffedPacketLength) {
 	int res = 0;
 	for (int ind = 0; ind < stuffedPacketLength; ind++) {
 		res ^= stuffedPacket[ind];
 	}
-	return BCC1 ^ res;
+	return res;
 }
 
 int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int *frameLength) {
@@ -336,7 +337,7 @@ int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int 
 	for (int ind = 4, packetInd = 0; ind < *frameLength - 2; ind++, packetInd++) {
 		(*frame)[ind] = stuffedPacket[packetInd];
 	}
-	(*frame)[*frameLength - 2] = calculateBCC2((*frame)[3], stuffedPacket, stuffedPacketLength);
+	(*frame)[*frameLength - 2] = calculateBCC2(stuffedPacket, stuffedPacketLength);
 	(*frame)[*frameLength - 1] = FLAG;
 
 	return 0;
@@ -359,7 +360,7 @@ int llwrite(int fd, char *data, int dataLength) {
 	#ifdef DEBUG
 	bool success = false;
 	#endif
-	int numTimeOuts = 0;
+	int numTimeOuts = 0, numRejects = 0;
 	if (stuffPacket(data, dataLength, &stuffedData, &stuffedDataLength) == -1) {
 		printf("llwrite(): stuffPacket() failed\n");
 		return -1;
@@ -451,10 +452,11 @@ int llwrite(int fd, char *data, int dataLength) {
 			continue;
 		}
 		if (rejected) {
+			numRejects++;
 			printf("Packet rejected, resending.\n");
 			continue;
 		}
-	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || rejected);
+	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (rejected && numRejects < MAX_REJS));
 
 	#ifdef DEBUG
 	if (success) {
@@ -592,12 +594,12 @@ int llread(int fd, char **buffer) {
 		}
 	}
 
-	char BCC2 = stuffedPacket[stuffedPacketLength-1];
-	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength-1);
+	char BCC2 = stuffedPacket[stuffedPacketLength - 1];
+	stuffedPacket = realloc(stuffedPacket, stuffedPacketLength - 1);
 	stuffedPacketLength--;
 
 	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
-	if (!validBCC2(received[2], *buffer, bufferLength, BCC2)) {
+	if (!validBCC2(*buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd) == -1) {
 			printf("llread(): sendRejection error\n");

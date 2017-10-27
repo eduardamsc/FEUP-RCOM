@@ -196,21 +196,21 @@ int appWrite(char port[], char filename[]) {
   startPacket[8] = strlen(filename);
   strncpy(startPacket + 9,filename, strlen(filename));
 
-  llwrite(portFd,startPacket,9+strlen(filename));
+  llwrite(portFd,startPacket,9 + strlen(filename));
 
   int readRes = -2;
-  while (readRes = read(fd,buffer,20)){
+  while (readRes = read(fd, buffer, 0xFF)){
     char dataPacket[24];
     bzero(dataPacket, 24);
 
     dataPacket[0] = DATA_PACKET;
     dataPacket[1] = n%255;
     dataPacket[2] = 0;
-    dataPacket[3] = 20;
+    dataPacket[3] = 0xFF;
 
-    strcpy(dataPacket+4, buffer);
+    strcpy(dataPacket + 4, buffer);
 
-    llwrite(portFd,dataPacket,24);
+    llwrite(portFd,dataPacket,0xFF + 4);
 
     n++;
   }
