@@ -19,7 +19,10 @@ int main(int argc, char** argv) {
       exit(1);
     }
 
-    appRead(argv[1]);
+    if (appRead(argv[1]) == -1) {
+      printf("appRead() failed.\n");
+      return -1;
+    }
 
     return 0;
 }
