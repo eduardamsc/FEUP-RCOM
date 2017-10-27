@@ -31,8 +31,8 @@
 #define C_IND_RESP 1
 #define BCC_IND_RESP 2
 
-#define I_FRAMES_SEQ_NUM_BIT(x) (x >> 7)
-#define S_U_FRAMES_SEQ_NUM_BIT(x) (x >> 8)
+#define I_FRAMES_SEQ_NUM_BIT(x) (x >> 6)
+#define S_U_FRAMES_SEQ_NUM_BIT(x) (x >> 7)
 
 #define TIMEOUT 3 //seconds
 #define MAX_TIME_OUTS 5 // attempts
@@ -67,7 +67,6 @@ enum Type {
 };
 
 static bool timedOut = false;
-static int receivedSeqNum = -1;
 static struct termios oldtio;
 
 void sigAlarmHandler(int sig) {
@@ -83,15 +82,14 @@ bool validBCC2(char *buffer, int bufferLength, char BCC2) {
 	for (int i = 0; i < bufferLength; i++) {
 		aux ^= buffer[i];
 	}
-
 	return aux == BCC2;
 }
 
 bool isRejected(char response[]) {
-	return (response[C_IND_RESP] == C_REJ);
+	return ((response[C_IND_RESP] & 0x7F) == C_REJ);
 }
 
-int sendReady(int fd) {
+int sendReady(int fd, int seqNumber) {
 	int responseSize = 5;
 	char response[responseSize];
 
@@ -99,8 +97,8 @@ int sendReady(int fd) {
 
 	response[0] = FLAG;
 	response[1] = A_READ_RESP;
-	response[2] = C_RR;
-	response[3] = A_READ_RESP^C_RR;
+	response[2] = C_RR | (seqNumber << 7);
+	response[3] = A_READ_RESP ^ (C_RR | (seqNumber << 7));
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
@@ -323,7 +321,7 @@ char calculateBCC2(char stuffedPacket[], int stuffedPacketLength) {
 	return res;
 }
 
-int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int *frameLength) {
+int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int *frameLength, int seqNumber) {
 	*frameLength = stuffedPacketLength + 6;
 	*frame = malloc(*frameLength);
 	if (*frame == NULL) {
@@ -332,8 +330,8 @@ int makeFrame(char stuffedPacket[], int stuffedPacketLength, char *frame[], int 
 	}
 	(*frame)[0] = FLAG;
 	(*frame)[1] = A;
-	(*frame)[2] = C_I;
-	(*frame)[3] = A ^ C_I;
+	(*frame)[2] = C_I | (seqNumber << 6);
+	(*frame)[3] = A ^ (C_I | (seqNumber << 6));
 	for (int ind = 4, packetInd = 0; ind < *frameLength - 2; ind++, packetInd++) {
 		(*frame)[ind] = stuffedPacket[packetInd];
 	}
@@ -353,6 +351,7 @@ int sendFrame(int fd, char frame[], int stuffedPacketLength, int frameLength) {
 }
 
 int llwrite(int fd, char *data, int dataLength) {
+	static char receivedSeqNum = 0;
 	int bytesWritten = 0;
 	char *stuffedData = NULL;
 	int stuffedDataLength = -1;
@@ -376,7 +375,7 @@ int llwrite(int fd, char *data, int dataLength) {
 		#ifdef DEBUG
 		printf("llwrite(): Computing and sending frame\n");
 		#endif
-		if (makeFrame(stuffedData, stuffedDataLength, &frame, &frameLength) == -1) {
+		if (makeFrame(stuffedData, stuffedDataLength, &frame, &frameLength, receivedSeqNum) == -1) {
 			printf("llwrite(): Error making frame\n");
 			return -1;
 		}
@@ -427,9 +426,6 @@ int llwrite(int fd, char *data, int dataLength) {
 						rejected = true;
 						break;
 					}
-					if (receivedSeqNum == S_U_FRAMES_SEQ_NUM_BIT(response[C_IND_RESP])) {
-						printf("llwrite(): Frame received out of order\n");
-					}
 				}
 				ind++;
 				break;
@@ -448,28 +444,32 @@ int llwrite(int fd, char *data, int dataLength) {
 		}
 		if (timedOut) {
 			numTimeOuts++;
-			printf("Attempt %d of %d failed, retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+			printf("%d/%d: Timed out, resending.\n", numTimeOuts, MAX_TIME_OUTS);
 			continue;
 		}
 		if (rejected) {
 			numRejects++;
-			printf("Packet rejected, resending.\n");
+			printf("%d/%d: Packet rejected, resending.\n", numRejects, MAX_REJS);
 			continue;
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (rejected && numRejects < MAX_REJS));
 
 	#ifdef DEBUG
 	if (success) {
-		printf("llwrite(): Success\n");
+		printf("llwrite(): Success.\n");
 	} else {
-		printf("llwrite(): Failed to send packet\n");
+		printf("llwrite(): Failed to send packet.\n");
 	}
 	#endif
+
+	if (numTimeOuts >= MAX_TIME_OUTS || numRejects >= MAX_REJS) {
+		return -1;
+	}
 
 	return bytesWritten;
 }
 
-int sendRejection(int fd) {
+int sendRejection(int fd, int seqNumber) {
 	int responseSize = 5;
 	char response[responseSize];
 
@@ -477,8 +477,8 @@ int sendRejection(int fd) {
 
 	response[0] = FLAG;
 	response[1] = A_READ_RESP;
-	response[2] = C_REJ;
-	response[3] = A_READ_RESP^C_REJ;
+	response[2] = C_REJ | (seqNumber << 7);
+	response[3] = A_READ_RESP ^ (C_REJ << 7);
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {

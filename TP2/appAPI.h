@@ -172,9 +172,17 @@ int appRead(char port[]) {
 
 int appWrite(char port[], char filename[]) {
   int portFd = llopen(port);
+  if (portFd == -1) {
+    printf("appWrite(): Failed to open connection.\n");
+    return -1;
+  }
 
   int fileSize = -1;
   int fd = open(filename,O_RDONLY);
+  if (fd == -1) {
+    perror("appWrite - open");
+    return -1;
+  }
 
   char buffer[20];
   char n = 0;
@@ -196,7 +204,12 @@ int appWrite(char port[], char filename[]) {
   startPacket[8] = strlen(filename);
   strncpy(startPacket + 9,filename, strlen(filename));
 
-  llwrite(portFd,startPacket,9 + strlen(filename));
+  if (llwrite(portFd,startPacket,9 + strlen(filename)) == -1) {
+    #ifdef DEBUG
+    printf("appWrite(): Failed to send start packet\n");
+    #endif
+    return -1;
+  }
 
   int readRes = -2;
   while (readRes = read(fd, buffer, 0xFF)){
@@ -210,7 +223,12 @@ int appWrite(char port[], char filename[]) {
 
     strcpy(dataPacket + 4, buffer);
 
-    llwrite(portFd,dataPacket,0xFF + 4);
+    if (llwrite(portFd,dataPacket,0xFF + 4) == -1) {
+      #ifdef DEBUG
+      printf("appWrite(): Failed to send data packet.\n");
+      #endif
+      return -1;
+    }
 
     n++;
   }
@@ -228,8 +246,14 @@ int appWrite(char port[], char filename[]) {
   endPacket[8] = strlen(filename);
   strncpy(endPacket + 9, filename, strlen(filename));
 
-  llwrite(portFd,endPacket,9+strlen(filename));
+  if (llwrite(portFd,endPacket,9+strlen(filename)) == -1) {
+    printf("appWrite(): Failed to send end packet\n");
+    return -1;
+  }
 
-  llclose_Transmitter(portFd);
+  if (llclose_Transmitter(portFd) == -1) {
+    printf("appWrite(): Failed to disconnect.\n");
+    return -1;
+  }
   return 0;
 }
