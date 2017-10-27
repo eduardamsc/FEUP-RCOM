@@ -178,9 +178,9 @@ int appWrite(char port[], char filename[]) {
   }
 
   int fileSize = -1;
-  int fd = open(filename,O_RDONLY);
-  if (fd == -1) {
-    perror("appWrite - open");
+  FILE *fp = fopen(filename, "rb");
+  if (fp == NULL) {
+    perror("appWrite - fopen");
     return -1;
   }
 
@@ -188,7 +188,7 @@ int appWrite(char port[], char filename[]) {
   char n = 0;
 
   struct stat statBuf;
-  fstat(fd, &statBuf);
+  stat(filename, &statBuf);
   fileSize = statBuf.st_size;
 
   char startPacket[9 + strlen(filename)];
@@ -204,7 +204,7 @@ int appWrite(char port[], char filename[]) {
   startPacket[8] = strlen(filename);
   strncpy(startPacket + 9,filename, strlen(filename));
 
-  if (llwrite(portFd,startPacket,9 + strlen(filename)) == -1) {
+  if (llwrite(portFd, startPacket, 9 + strlen(filename)) == -1) {
     #ifdef DEBUG
     printf("appWrite(): Failed to send start packet\n");
     #endif
@@ -212,7 +212,7 @@ int appWrite(char port[], char filename[]) {
   }
 
   int readRes = -2;
-  while (readRes = read(fd, buffer, 0xFF)){
+  while (readRes = fread(buffer, 0xFF, 1, fp)) {
     char dataPacket[0xFF + 4];
     bzero(dataPacket, 24);
 
@@ -231,6 +231,10 @@ int appWrite(char port[], char filename[]) {
     }
 
     n++;
+  }
+  if (fclose(fp) == EOF) {
+    perror("appWrite - fclose");
+    return -1;
   }
 
   char endPacket[9 + strlen(filename)];

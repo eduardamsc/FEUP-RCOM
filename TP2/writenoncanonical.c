@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
       exit(1);
     }
 
-  	char filename[] = "pinguim.gif";
+  	char filename[] = "test.txt";
 
   	appWrite(argv[1], filename);
 
