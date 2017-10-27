@@ -167,6 +167,11 @@ int appRead(char port[]) {
     return -1;
   }
 
+  free(filename);
+  free(fileBuffer);
+  free(startPacket);
+  free(packet);
+
   return 0;
 }
 
