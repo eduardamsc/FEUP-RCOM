@@ -599,7 +599,7 @@ int llread(int fd, char **buffer) {
 	stuffedPacketLength--;
 
 	unstuffPacket(stuffedPacket, stuffedPacketLength, buffer, &bufferLength);
-	char receivedSeqNum = !(buffer[2] >> 6);
+	char receivedSeqNum = !((*buffer)[2] >> 6);
 	if (!validBCC2(*buffer, bufferLength, BCC2)) {
 		printf("llread(): Invalid BCC2, sending REJ \n");
 		if (sendRejection(fd, receivedSeqNum) == -1) {
