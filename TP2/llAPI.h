@@ -89,7 +89,7 @@ bool isRejected(char response[]) {
 	return ((response[C_IND_RESP] & 0x7F) == C_REJ);
 }
 
-int sendReady(int fd, int seqNumber) {
+int sendReady(int fd, char seqNumber) {
 	int responseSize = 5;
 	char response[responseSize];
 
@@ -469,7 +469,7 @@ int llwrite(int fd, char *data, int dataLength) {
 	return bytesWritten;
 }
 
-int sendRejection(int fd, int seqNumber) {
+int sendRejection(int fd, char seqNumber) {
 	int responseSize = 5;
 	char response[responseSize];
 
@@ -493,7 +493,7 @@ int unstuffPacket(char* stuffedPacket, int stuffedPacketLength, char *buffer[], 
 	*bufferLength = 0;
 	*buffer = malloc(stuffedPacketLength);
 	if (*buffer == NULL) {
-		printf("unstuffPacket(): first realloc() failed\n");
+		printf("unstuffPacket(): malloc failed\n");
 		return -1;
 	}
 

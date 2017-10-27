@@ -213,17 +213,17 @@ int appWrite(char port[], char filename[]) {
 
   int readRes = -2;
   while (readRes = read(fd, buffer, 0xFF)){
-    char dataPacket[24];
+    char dataPacket[0xFF + 4];
     bzero(dataPacket, 24);
 
     dataPacket[0] = DATA_PACKET;
-    dataPacket[1] = n%255;
+    dataPacket[1] = n % 255;
     dataPacket[2] = 0;
     dataPacket[3] = 0xFF;
 
     strcpy(dataPacket + 4, buffer);
 
-    if (llwrite(portFd,dataPacket,0xFF + 4) == -1) {
+    if (llwrite(portFd, dataPacket, 0xFF + 4) == -1) {
       #ifdef DEBUG
       printf("appWrite(): Failed to send data packet.\n");
       #endif
@@ -246,7 +246,7 @@ int appWrite(char port[], char filename[]) {
   endPacket[8] = strlen(filename);
   strncpy(endPacket + 9, filename, strlen(filename));
 
-  if (llwrite(portFd,endPacket,9+strlen(filename)) == -1) {
+  if (llwrite(portFd, endPacket, 9 + strlen(filename)) == -1) {
     printf("appWrite(): Failed to send end packet\n");
     return -1;
   }
