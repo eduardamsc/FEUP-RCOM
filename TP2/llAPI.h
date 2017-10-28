@@ -178,6 +178,11 @@ int llopen_read(char port[]) {
 		case O_S2:
 			if (res != 0 && buf[0] != FLAG) {
 				state = O_S3;
+				if (ind >= 3) {
+					state = O_S1;
+					ind = 0;
+					break;
+				}
 				received[ind++] = buf[0];
 			}
 			break;
@@ -206,7 +211,12 @@ int llopen_read(char port[]) {
 	#ifdef DEBUG
 	printf("sending UA\n");
 	#endif
-	write(fd, ua_msg, setMsgSize);
+	if (write(fd, ua_msg, setMsgSize) == -1) {
+		#ifdef DEBUG
+		printf("llopen_read(): Failed to write UA to port.\n");
+		#endif
+		return -1;
+	}
 	#ifdef DEBUG
 	printf("llopen Success\n");
 	#endif
