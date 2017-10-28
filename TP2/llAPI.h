@@ -190,6 +190,11 @@ int llopen_read(char port[]) {
 			if (res != 0 && buf[0] == FLAG) {
 				state = O_END_READ;
 			}
+			if (ind == 3) {
+				state = O_S1;
+				ind = 0;
+				break;
+			}
 			received[ind++] = buf[0];
 
 			if (ind == 3) {
@@ -198,7 +203,6 @@ int llopen_read(char port[]) {
 					return -1;
 				}
 			}
-			/* ind++; */
 			break;
 		case O_END_READ:
 			#ifdef DEBUG
