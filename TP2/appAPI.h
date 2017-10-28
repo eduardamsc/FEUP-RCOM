@@ -210,6 +210,7 @@ int appWrite(char port[], char filename[]) {
     #ifdef DEBUG
     printf("appWrite(): Failed to send start packet\n");
     #endif
+    fclose(fp);
     return -1;
   }
 
@@ -231,6 +232,7 @@ int appWrite(char port[], char filename[]) {
       #ifdef DEBUG
       printf("appWrite(): Failed to send data packet.\n");
       #endif
+      fclose(fp);
       return -1;
     }
 
