@@ -290,7 +290,7 @@ int llopen(char port[]) {
 	return fd;
 }
 
-int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuffedPacketLength) {
+int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuff 	edPacketLength) {
 	*stuffedPacketLength = 0;
 	*stuffedPacket = malloc(packetLength);
 	if (*stuffedPacket == NULL) {
@@ -383,6 +383,7 @@ int llwrite(int fd, char *data, int dataLength) {
 			printf("llwrite(): Error sending frame\n");
 			return -1;
 		}
+		free(frame);
 		signal(SIGALRM, sigAlarmHandler);
 		alarm(3);
 
@@ -453,6 +454,8 @@ int llwrite(int fd, char *data, int dataLength) {
 			continue;
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (rejected && numRejects < MAX_REJS));
+	
+	free(stuffedData);
 
 	#ifdef DEBUG
 	if (success) {
