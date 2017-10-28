@@ -290,7 +290,7 @@ int llopen(char port[]) {
 	return fd;
 }
 
-int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuff 	edPacketLength) {
+int stuffPacket(char packet[], int packetLength, char *stuffedPacket[], int *stuffedPacketLength) {
 	*stuffedPacketLength = 0;
 	*stuffedPacket = malloc(packetLength);
 	if (*stuffedPacket == NULL) {
