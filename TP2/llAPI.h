@@ -190,7 +190,7 @@ int llopen_read(char port[]) {
 			if (res != 0 && buf[0] == FLAG) {
 				state = O_END_READ;
 			}
-			received[ind] = buf[0];
+			received[ind++] = buf[0];
 
 			if (ind == 3) {
 				if (!validBCC1(received)) {
@@ -198,7 +198,7 @@ int llopen_read(char port[]) {
 					return -1;
 				}
 			}
-			ind++;
+			/* ind++; */
 			break;
 		case O_END_READ:
 			#ifdef DEBUG
