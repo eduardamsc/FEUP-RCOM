@@ -5,6 +5,8 @@
 
 int main() {
     char port[] = "/dev/ttyS0";
+    char msg[] = "qwertyABCDE 012345";
     int fd = llopen(port, TRANSMITTER);
-    printf("fd = %d\n", fd);
+    int bytesWritten = llwrite(fd, msg, strlen(msg));
+    printf("bytesWritten = %d\n", bytesWritten);
 }
