@@ -220,6 +220,7 @@ int appWrite(char port[], char filename[]) {
   char buffer[0xFF];
   char n = 0;
   int bytesRead = -2;
+  int totalBytesWritten = 0;
   while (bytesRead = fread(buffer, 1, 0xFF, fp)) {
     char dataPacket[bytesRead + 4];
     bzero(dataPacket, bytesRead + 4);
@@ -231,13 +232,16 @@ int appWrite(char port[], char filename[]) {
 
     memcpy(dataPacket + 4, buffer, bytesRead);
 
-    if (llwrite(portFd, dataPacket, bytesRead + 4) == -1) {
+    int res = -2;
+    if ((res = llwrite(portFd, dataPacket, bytesRead + 4)) == -1) {
       #ifdef DEBUG
       printf("appWrite(): Failed to send data packet.\n");
       #endif
       fclose(fp);
       return -1;
     }
+    totalBytesWritten += res;
+    printf("Data sent: %.2f%%\n", (double) totalBytesWritten / fileSize * 100);
 
     n++;
   }
