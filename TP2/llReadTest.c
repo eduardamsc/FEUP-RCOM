@@ -19,4 +19,6 @@ int main() {
   for (int i = 0; i < msgSize; i++) {
     printf("%c ", msg[i]);
   }
+  int res = llclose(fd);
+  printf("llclose res = %d\n", res);
 }

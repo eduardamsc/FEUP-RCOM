@@ -11,4 +11,6 @@ int main() {
     int fd = llopen(port, TRANSMITTER);
     int bytesWritten = llwrite(fd, msg, msgSize);
     printf("bytesWritten = %d\n", bytesWritten);
+    int res = llclose(fd);
+    printf("llclose res = %d\n", res);
 }
