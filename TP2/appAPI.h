@@ -240,7 +240,9 @@ int appWrite(char port[], char filename[]) {
       fclose(fp);
       return -1;
     }
-    totalBytesWritten += res;
+    if (res > 0) {
+      totalBytesWritten += bytesRead;
+    }
     printf("Data sent: %.2f%%\n", (double) totalBytesWritten / fileSize * 100);
 
     n++;
