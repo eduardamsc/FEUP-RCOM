@@ -32,7 +32,7 @@ void readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
 /**
  * Reads data in packet to fileBuffer sequentially, reallocating it.
  */
-int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
+int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength, int *seqNumMismatches) {
   static int prevSeqNum = -1;
 
   unsigned char sequenceNumber = packet[DATA_N];
@@ -40,6 +40,7 @@ int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
     prevSeqNum = sequenceNumber;
   } else if ((prevSeqNum + 1) % 255 != sequenceNumber) {
     printf("Warning: Sequence number mismatch in data packet.\n");
+    (*seqNumMismatches)++;
   }
 
   int dataSize = 256 * (unsigned char) packet[DATA_L2] + (unsigned char) packet[DATA_L1];
@@ -124,6 +125,11 @@ int writeLocalFile(char *filename, char *fileBuffer, int fileBufferLength) {
   return 0;
 }
 
+void printReceiverReport(int receivedBytes, int originalFileSize, int seqNumMismatches) {
+  printf("Received bytes: %d out of %d.\n", receivedBytes, originalFileSize);
+  printf("Sequence number mismatches: %d.\n", seqNumMismatches);
+}
+
 int appRead(char port[]) {
   char *filename = NULL;
   char *fileBuffer = NULL, *packet = NULL, *startPacket = NULL;
@@ -131,6 +137,7 @@ int appRead(char port[]) {
   int fileLength = 0;
   int packetLength = 0;
   bool finished = false;
+  int seqNumMismatches = 0;
   int fd = llopen(port, RECEIVER);
 
   while (!finished) {
@@ -140,7 +147,7 @@ int appRead(char port[]) {
     }
     switch (packet[C_APP]) {
       case DATA_PACKET:
-        processDataPacket(packet, &fileBuffer, &fileBufferLength);
+        processDataPacket(packet, &fileBuffer, &fileBufferLength, &seqNumMismatches);
         printf("Data received: %.2f%%\n", (double) fileBufferLength / fileLength * 100);
         break;
       case START_PACKET:
@@ -174,6 +181,9 @@ int appRead(char port[]) {
   free(fileBuffer);
   free(startPacket);
   free(packet);
+
+  printf("\n\n");
+  printReceiverReport(fileBufferLength, fileSize, seqNumMismatches);
 
   return 0;
 }
