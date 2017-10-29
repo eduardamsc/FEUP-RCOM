@@ -35,7 +35,7 @@ void readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
 int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
   static int prevSeqNum = -1;
 
-  int sequenceNumber = packet[DATA_N];
+  unsigned char sequenceNumber = packet[DATA_N];
   if (prevSeqNum == -1) {
     prevSeqNum = sequenceNumber;
   } else if ((prevSeqNum + 1) % 255 != sequenceNumber) {
