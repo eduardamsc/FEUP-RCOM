@@ -291,6 +291,7 @@ int llopenTransmitter(int fd) {
 		int frameLength = 0;
 		do {
 			res = readFrame(fd, &frame, &frameLength);
+			free(frame);
 		} while (res != UA && !timedOut);
 
 		if (timedOut) {
@@ -595,10 +596,12 @@ int llwrite(int fd, char *data, int dataLength) {
 
 	makeFrame(data, dataLength, seqNum, &frame, &frameLength);
 	stuffFrame(frame, frameLength, &stuffedFrame, &stuffedFrameLength);
+	free(frame);
 	do {
 		timedOut = false;
 		if (write(fd, stuffedFrame, stuffedFrameLength) == -1) {
 			perror("llwrite - write");
+			free(stuffedFrame);
 			return -1;
 		}
 		alarm(3);
@@ -607,6 +610,7 @@ int llwrite(int fd, char *data, int dataLength) {
 		bool accepted = false;
 		do {
 			res = readFrame(fd, &responseFrame,  &responseFrameLength);
+			free(responseFrame);
 			switch (res) {
 				case RR:
 					accepted = true;
@@ -628,6 +632,8 @@ int llwrite(int fd, char *data, int dataLength) {
 				printf("%d/%d: Timed out while sending packet. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
 				printf("%d/%d: Timed out while sending packet. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				alarm(0);
+				free(stuffedFrame);
 				return -1;
 			}
 		}
@@ -635,6 +641,8 @@ int llwrite(int fd, char *data, int dataLength) {
 	} while(timedOut && numTimeOuts < MAX_TIME_OUTS);
 
 	alarm(0);
+
+	free(stuffedFrame);
 
 	if (numTimeOuts >= MAX_TIME_OUTS) {
 		return 0;
@@ -695,6 +703,7 @@ int llcloseTransmitter(int fd) {
 		int frameLength = 0;
 		do {
 			res = readFrame(fd, &frame, &frameLength);
+			free(frame);
 		} while (res != DISC && !timedOut);
 
 		alarm(0);
