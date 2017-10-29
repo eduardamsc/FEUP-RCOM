@@ -188,6 +188,10 @@ int appRead(char port[]) {
   return 0;
 }
 
+void printTransmitterReport(int bytesSent, int fileSize) {
+  printf("Transmitted bytes: %d out of %d.\n", bytesSent, fileSize);
+}
+
 int appWrite(char port[], char filename[]) {
   int portFd = llopen(port, TRANSMITTER);
   if (portFd == -1) {
@@ -221,7 +225,7 @@ int appWrite(char port[], char filename[]) {
 
   if (llwrite(portFd, startPacket, 9 + strlen(filename)) == -1) {
     #ifdef DEBUG
-    printf("appWrite(): Failed to send start packet\n");
+    printf("appWrite(): Failed to send start packet.\n");
     #endif
     fclose(fp);
     return -1;
@@ -284,5 +288,9 @@ int appWrite(char port[], char filename[]) {
     printf("appWrite(): Failed to disconnect.\n");
     return -1;
   }
+
+  printf("\n\n");
+  printTransmitterReport(totalBytesWritten, fileSize);
+
   return 0;
 }
