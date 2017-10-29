@@ -141,6 +141,7 @@ int appRead(char port[]) {
     switch (packet[C_APP]) {
       case DATA_PACKET:
         processDataPacket(packet, &fileBuffer, &fileBufferLength);
+        printf("Data received: %.2f%%\n", (double) fileBufferLength / fileLength * 100);
         break;
       case START_PACKET:
         if (processStartPacket(packet, packetLength, &fileLength, &filename) == -1) {
@@ -160,7 +161,7 @@ int appRead(char port[]) {
   }
 
   if (llclose(fd) == -1) {
-      printf("appRead(): llclose_Receiver() failed\n");;
+      printf("appRead(): llclose() failed\n");;
       return -1;
   }
 

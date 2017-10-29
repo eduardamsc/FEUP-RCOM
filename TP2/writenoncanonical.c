@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
       exit(1);
     }
 
-  	char filename[] = "test.txt";
+  	char filename[] = "yaguas.jpg";
 
   	appWrite(argv[1], filename);
 
