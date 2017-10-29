@@ -204,7 +204,7 @@ int appWrite(char port[], char filename[]) {
   startPacket[6] = (fileSize & 0x000000FF);
   startPacket[7] = 1;
   startPacket[8] = strlen(filename);
-  strncpy(startPacket + 9,filename, strlen(filename));
+  memcpy(startPacket + 9,filename, strlen(filename));
 
   if (llwrite(portFd, startPacket, 9 + strlen(filename)) == -1) {
     #ifdef DEBUG
