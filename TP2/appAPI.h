@@ -226,7 +226,7 @@ int appWrite(char port[], char filename[]) {
     dataPacket[2] = 0;
     dataPacket[3] = bytesRead;
 
-    strncpy(dataPacket + 4, buffer, bytesRead);
+    memcpy(dataPacket + 4, buffer, bytesRead);
 
     if (llwrite(portFd, dataPacket, bytesRead + 4) == -1) {
       #ifdef DEBUG
@@ -254,7 +254,7 @@ int appWrite(char port[], char filename[]) {
   endPacket[6] = (fileSize & 0x000000FF);
   endPacket[7] = 1;
   endPacket[8] = strlen(filename);
-  strncpy(endPacket + 9, filename, strlen(filename));
+  memcpy(endPacket + 9, filename, strlen(filename));
 
   if (llwrite(portFd, endPacket, 9 + strlen(filename)) == -1) {
     printf("appWrite(): Failed to send end packet\n");
