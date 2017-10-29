@@ -3,8 +3,6 @@
 int main() {
   char port[] = "/dev/ttyS0";
 
-  char *msg;
-  int fd = llopen_read(port);
-  llread(fd, &msg);
-  printf("%s\n", msg);
+  int fd = llopen(port, RECEIVER);
+  printf("fd = %d\n", fd);
 }

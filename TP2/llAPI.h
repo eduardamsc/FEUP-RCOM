@@ -14,6 +14,8 @@
 
 //TODO - Ns and Nr.
 #define FLAG 0x7E
+#define F1 0x7D
+#define F2 0x5E
 #define A_READ_CMD 0x01
 #define A_READ_RESP 0x03
 #define A 0x03
@@ -38,7 +40,306 @@
 #define MAX_TIME_OUTS 5 // attempts
 #define MAX_REJS 5 //attempts
 
-enum LLOpenState {
+static bool timedOut = false;
+static struct termios oldtio;
+
+void sigAlarmHandler(int sig) {
+	timedOut = true;
+}
+
+enum FrameTypeRes {
+	DATA,
+	SET,
+	DISC,
+	UA,
+	RR,
+	REJ,
+	IGNORE,
+	ERROR
+};
+
+enum ReadFrameState {
+	AWAITING_FLAG,
+	AWAITING_A,
+	AWAITING_C,
+	// C begin
+	FOUND_I,
+	FOUND_SET,
+	FOUND_DISC,
+	FOUND_UA,
+	FOUND_RR,
+	FOUND_REJ,
+	UNKNOWN_C,
+	// C end
+	VALIDATED_BCC_I,
+	VALIDATED_BCC_OTHERS,
+	READING_I_DATA
+};
+
+enum ReadFrameState interpretC(char c) {
+	switch (c & 0x3F) { // ignore sequence number
+		case 0x0:
+			return FOUND_I;
+		case 0x3:
+			return FOUND_SET;
+		case 0xB:
+			return FOUND_DISC;
+		case 0x7:
+			return FOUND_UA;
+		case 0x5:
+			return FOUND_RR;
+		case 0x1:
+			return FOUND_REJ;
+		default:
+			return UNKNOWN_C;
+	}
+}
+
+bool validBCC1(char A_BYTE, char C, char BCC1) {
+	return BCC1 == (A_BYTE ^ C);
+}
+
+enum FrameTypeRes readFrame(int fd, char **frame, int *frameLength) {
+	*frame = malloc(5);
+	*frameLength = 5;
+	(*frame)[0] = FLAG;
+	enum ReadFrameState state = AWAITING_FLAG;
+	enum FrameTypeRes frameTypeRes;
+	char buf;
+	int bytesRead;
+	while ((bytesRead = read(fd, &buf, 1)) != -1) {
+		if (bytesRead == 0) {
+			continue;
+		}
+		switch (state) {
+			case AWAITING_FLAG:
+				if (buf == FLAG) {
+					state = AWAITING_A;
+				}
+				break;
+			case AWAITING_A:
+				if (buf != FLAG) {
+					state = AWAITING_C;
+					(*frame)[1] = buf;
+				}
+				break;
+			case AWAITING_C:
+				state = interpretC(buf);
+				(*frame)[2] = buf;
+				break;
+			case UNKNOWN_C:
+				return IGNORE;
+				break;
+			case FOUND_I:
+				state = VALIDATED_BCC_I;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case FOUND_SET:
+				state = VALIDATED_BCC_OTHERS;
+				frameTypeRes = SET;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case FOUND_DISC:
+				state = VALIDATED_BCC_OTHERS;
+				frameTypeRes = DISC;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case FOUND_UA:
+				state = VALIDATED_BCC_OTHERS;
+				frameTypeRes = UA;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case FOUND_RR:
+				state = VALIDATED_BCC_OTHERS;
+				frameTypeRes = RR;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case FOUND_REJ:
+				state = VALIDATED_BCC_OTHERS;
+				frameTypeRes = REJ;
+				(*frame)[3] = buf;
+				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+					return IGNORE;
+				}
+				break;
+			case VALIDATED_BCC_I:
+				(*frame)[4] = buf;
+				if (buf == FLAG) {
+					return DATA;
+				} else {
+					state = READING_I_DATA;
+				}
+				break;
+			case VALIDATED_BCC_OTHERS:
+				if (buf != FLAG) {
+					return IGNORE;
+				} else {
+					(*frame)[4] = FLAG;
+					return frameTypeRes;
+				}
+			case READING_I_DATA:
+				(*frameLength)++;
+				*frame = realloc(*frame, *frameLength);
+				(*frame)[*frameLength - 1] = buf;
+				if (buf == FLAG) {
+					return DATA;
+				}
+		}
+	}
+}
+
+int setupConnection(char port[]) {
+	
+	/*
+	Open serial port device for reading and writing and not as controlling tty
+	because we don't want to get killed if linenoise sends CTRL-C.
+	 */
+	
+	int fd = open(port, O_RDWR | O_NOCTTY, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (fd <0) {perror(port); exit(-1); }
+	
+	struct termios newtio;
+	if (tcgetattr(fd, &oldtio) == -1) { /* save current port settings */
+		perror("tcgetattr");
+		exit(-1);
+	}
+	
+	bzero(&newtio, sizeof(newtio));
+	newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+	newtio.c_iflag = IGNPAR;
+	newtio.c_oflag = 0;
+	
+	/* set input mode (non-canonical, no echo,...) */
+	newtio.c_lflag = 0;
+	
+	newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
+	newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
+	
+	tcflush(fd, TCIOFLUSH);
+	
+	if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
+		perror("tcsetattr");
+		exit(-1);
+	}
+	
+	printf("New termios structure set\n");
+	
+	return fd;
+}
+
+enum CommsType {
+	TRANSMITTER,
+	RECEIVER
+};
+
+/**
+ * setMsg must already be allocated with 5 chars.
+ */
+void makeSetMsg(char *setMsg) {
+	setMsg[0] = FLAG;
+	setMsg[1] = A;
+	setMsg[2] = C_SET;
+	setMsg[3] = A ^ C_SET;
+	setMsg[4] = FLAG;
+}
+
+void makeUaMsg(char *uaMsg) {
+	uaMsg[0] = FLAG;
+	uaMsg[1] = A;
+	uaMsg[2] = C_UA;
+	uaMsg[3] = A ^ C_UA;
+	uaMsg[4] = FLAG;
+}
+
+int llopenTransmitter(int fd) {
+	int numTimeOuts = 0;
+	char setMsg[5];
+	int setMsgSize = 5;
+	makeSetMsg(setMsg);
+	do {
+		if (write(fd, setMsg, setMsgSize) == -1) {
+			perror("llopenTransmitter - write");
+			return -1;
+		}
+		alarm(3);
+		signal(SIGALRM, sigAlarmHandler);
+
+		enum FrameTypeRes res;
+		char *frame = NULL;
+		int frameLength = 0;
+		do {
+			res = readFrame(fd, &frame, &frameLength);
+		} while (res != UA && !timedOut);
+
+		if (timedOut) {
+			numTimeOuts++;
+			if (numTimeOuts <= MAX_TIME_OUTS) {
+				printf("%d/%d: Timed out on connection establishment. Retrying.", numTimeOuts, MAX_TIME_OUTS);
+			} else {
+				printf("%d/%d: Timed out on connection establishment. Exiting.", numTimeOuts, MAX_TIME_OUTS);
+			}
+		}
+	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
+
+	return 0;
+}
+
+int llopenReceiver(int fd) {
+	char *frame = NULL;
+	int frameLength = 0;
+	while (SET != readFrame(fd, &frame, &frameLength)) {}
+	free(frame);
+
+	char uaMsg[5];
+	int uaMsgSize = 5;
+	makeUaMsg(uaMsg);
+	if (write(fd, uaMsg, uaMsgSize) == -1) {
+		perror("llopenReceiver - write");
+		return -1;
+	}
+	
+	return 0;
+}
+
+int llopen(char port[], enum CommsType type) {
+	int fd = setupConnection(port);
+	switch (type) {
+		case TRANSMITTER:
+			if (llopenTransmitter(fd) == -1) {
+				#ifdef DEBUG
+				printf("llopen(): llopenTransmitter failed.\n");
+				#endif
+				return -1;
+			}
+			break;
+		case RECEIVER:
+			if (llopenReceiver(fd) == -1) {
+				#ifdef DEBUG
+				printf("llopen(): llopenReceiver failed.\n");
+				#endif
+				return -1;
+			}
+			break;
+	}
+	return fd;
+}
+
+/* enum LLOpenState {
 	O_S1,
 	O_S2,
 	O_S3,
@@ -107,48 +408,11 @@ int sendReady(int fd, char seqNumber) {
 	}
 
 	return 0;
-}
+} */
 
-int setupConnection(char port[]) {
 
-	/*
-    Open serial port device for reading and writing and not as controlling tty
-    because we don't want to get killed if linenoise sends CTRL-C.
-  */
 
-	int fd = open(port, O_RDWR | O_NOCTTY, S_IRWXU | S_IRWXG | S_IRWXO);
-	if (fd <0) {perror(port); exit(-1); }
-
-	struct termios newtio;
-	if (tcgetattr(fd, &oldtio) == -1) { /* save current port settings */
-		perror("tcgetattr");
-		exit(-1);
-	}
-
-	bzero(&newtio, sizeof(newtio));
-	newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
-	newtio.c_iflag = IGNPAR;
-	newtio.c_oflag = 0;
-
-	/* set input mode (non-canonical, no echo,...) */
-	newtio.c_lflag = 0;
-
-	newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
-	newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
-
-	tcflush(fd, TCIOFLUSH);
-
-	if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
-		perror("tcsetattr");
-		exit(-1);
-	}
-
-	printf("New termios structure set\n");
-
-	return fd;
-}
-
-int llopen_read(char port[]) {
+/* int llopen_read(char port[]) {
 	int fd = setupConnection(port);
 	bool end = false;
 	int setMsgSize = 5;
@@ -862,3 +1126,4 @@ int llclose_Receiver(int fd) {
 	printf("llclose(): Success\n");
 	return 0;
 }
+ */
