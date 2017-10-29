@@ -23,7 +23,9 @@ void readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
   *fileLength = 0;
   int hexOrder = 0;
   for (int i = arrayLength - 1; i >= 0; i--) {
-    *fileLength += fileSizeChars[i] * pow(16, hexOrder);
+    *fileLength += (fileSizeChars[i] & 0xF) * pow(16, hexOrder++);
+    *fileLength += ((fileSizeChars[i] & 0xF0) >> 4) * pow(16, hexOrder);
+    hexOrder++;
   }
 }
 
