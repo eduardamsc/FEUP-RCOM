@@ -183,7 +183,7 @@ int appRead(char port[]) {
   free(packet);
 
   printf("\n\n");
-  printReceiverReport(fileBufferLength, fileSize, seqNumMismatches);
+  printReceiverReport(fileBufferLength, fileLength, seqNumMismatches);
 
   return 0;
 }
