@@ -590,7 +590,7 @@ int llwrite(int fd, char *data, int dataLength) {
 	stuffFrame(frame, frameLength, &stuffedFrame, &stuffedFrameLength);
 	do {
 		timedOut = false;
-		if (write(fd, frame, frameLength) == -1) {
+		if (write(fd, stuffedFrame, stuffedFrameLength) == -1) {
 			perror("llwrite - write");
 			return -1;
 		}
