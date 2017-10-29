@@ -38,12 +38,11 @@ int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength) {
   int sequenceNumber = packet[DATA_N];
   if (prevSeqNum == -1) {
     prevSeqNum = sequenceNumber;
-  }
-  if ((prevSeqNum + 1) % 255 != sequenceNumber) {
+  } else if ((prevSeqNum + 1) % 255 != sequenceNumber) {
     printf("Warning: Sequence number mismatch in data packet.\n");
   }
 
-  int dataSize = 256 * packet[DATA_L2] + packet[DATA_L1];
+  int dataSize = 256 * (unsigned char) packet[DATA_L2] + (unsigned char) packet[DATA_L1];
   *fileBuffer = realloc(*fileBuffer, *fileBufferLength + dataSize);
   for (int i = 0; i < dataSize; i++) {
     (*fileBuffer)[*fileBufferLength + i] = packet[DATA_P1 + i];
