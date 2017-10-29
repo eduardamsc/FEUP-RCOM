@@ -54,7 +54,8 @@ enum FrameTypeRes {
 	UA,
 	RR,
 	REJ,
-	IGNORE
+	IGNORE,
+	ERROR
 };
 
 enum ReadFrameState {
@@ -200,10 +201,8 @@ enum FrameTypeRes readFrame(int fd, char **frame, int *frameLength) {
 				}
 		}
 	}
-	#ifdef DEBUG
-	printf("readFrame(): Low level reading state machine in invalid state. Exitting.\n");
-	exit(-1);
-	#endif
+
+	return ERROR;
 }
 
 int setupConnection(char port[]) {
@@ -346,6 +345,9 @@ int llopen(char port[], enum CommsType type) {
 			}
 			break;
 	}
+	#ifdef DEBUG
+	printf("llopen success.\n");
+	#endif
 	return fd;
 }
 
@@ -593,12 +595,15 @@ int llwrite(int fd, char *data, int dataLength) {
 	char *responseFrame = NULL;
 	int responseFrameLength = 0;
 	int numTimeOuts = 0;
+	int numRejects = 0;
+	bool accepted = false;
 
 	makeFrame(data, dataLength, seqNum, &frame, &frameLength);
 	stuffFrame(frame, frameLength, &stuffedFrame, &stuffedFrameLength);
 	free(frame);
 	do {
 		timedOut = false;
+		accepted = true;
 		if (write(fd, stuffedFrame, stuffedFrameLength) == -1) {
 			perror("llwrite - write");
 			free(stuffedFrame);
@@ -607,7 +612,7 @@ int llwrite(int fd, char *data, int dataLength) {
 		alarm(3);
 		signal(SIGALRM, sigAlarmHandler);
 		enum FrameTypeRes res;
-		bool accepted = false;
+		bool endRead = true;
 		do {
 			res = readFrame(fd, &responseFrame,  &responseFrameLength);
 			free(responseFrame);
@@ -617,14 +622,21 @@ int llwrite(int fd, char *data, int dataLength) {
 					break;
 				case REJ:
 					accepted = false;
+					numRejects++;
 					break;
 				case IGNORE:
 					accepted = true;
 					break;
+				case ERROR:
+					timedOut = true;
+					break;
 				default:
+					endRead = false;
 					continue;
 			}
-		} while (!timedOut && !accepted);
+		} while (!timedOut && !endRead);
+
+		alarm(0);
 
 		if (timedOut) {
 			++numTimeOuts;
@@ -638,9 +650,7 @@ int llwrite(int fd, char *data, int dataLength) {
 			}
 		}
 
-	} while(timedOut && numTimeOuts < MAX_TIME_OUTS);
-
-	alarm(0);
+	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (!accepted && numRejects < MAX_REJS));
 
 	free(stuffedFrame);
 
