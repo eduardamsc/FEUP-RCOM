@@ -9,9 +9,14 @@ int main() {
 
   char *msg = NULL;
   int msgSize = llread(fd, &msg);
-  printf("Data size: %d | Data received: ", msgSize);
+  printf("Data size: %d\n", msgSize);
+  printf("HEX:\n");
   for (int i = 0; i < msgSize; i++) {
     printf("%x ", msg[i]);
   }
   printf("\n");
+  printf("Chars:\n");
+  for (int i = 0; i < msgSize; i++) {
+    printf("%c ", msg[i]);
+  }
 }
