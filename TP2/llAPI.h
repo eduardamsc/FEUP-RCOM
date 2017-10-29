@@ -384,7 +384,7 @@ int stuffFrame(char *frame, int frameLength, char **stuffedFrame, int *stuffedFr
 	}
 
 	(*stuffedFrame)[0] = FLAG;
-	for (int unstuffedInd = 1, stuffedInd = 1; unstuffedInd < frameLength; unstuffedInd++, stuffedInd++) {
+	for (int unstuffedInd = 1, stuffedInd = 1; unstuffedInd < frameLength - 1; unstuffedInd++, stuffedInd++) {
 		switch (frame[unstuffedInd]) {
 			case FLAG:
 				(*stuffedFrameLength)++;
@@ -424,10 +424,10 @@ int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame, int *
 	}
 
 	(*frame)[0] = FLAG;
-	for (int stuffedInd = 1, unstuffedInd = 1; stuffedInd < stuffedFrameLength; stuffedInd++, unstuffedInd++) {
+	for (int stuffedInd = 1, unstuffedInd = 1; stuffedInd < stuffedFrameLength - 1; stuffedInd++, unstuffedInd++) {
 		switch (stuffedFrame[stuffedInd]) {
 			case ESC:
-				(*frameLength)++;
+				(*frameLength)--;
 				*frame = realloc(*frame, *frameLength);
 				stuffedInd++;
 				(*frame)[unstuffedInd] = stuffedFrame[stuffedInd] ^ 0x20;
