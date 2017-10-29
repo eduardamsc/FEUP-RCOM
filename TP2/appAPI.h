@@ -1,5 +1,6 @@
 #include "llAPI.h"
 #include <stdio.h>
+#include <math.h>
 
 #define C_APP 0
 #define TLV_T 0
@@ -18,12 +19,12 @@
 #define START_PACKET 2
 #define END_PACKET 3
 
-int readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
-  if (scanf(fileSizeChars, "%d", fileLength) == EOF) {
-    printf("readFileSize(): scanf failed.\n");
-    return -1;
+void readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
+  *fileLength = 0;
+  int hexOrder = 0;
+  for (int i = arrayLength - 1; i >= 0; i--) {
+    *fileLength += fileSizeChars[i] * pow(16, hexOrder);
   }
-  return 0;
 }
 
 /**
