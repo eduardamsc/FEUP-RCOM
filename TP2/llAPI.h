@@ -16,9 +16,8 @@
 #define FLAG 0x7E
 #define F1 0x7D
 #define F2 0x5E
-#define A_READ_CMD 0x01
-#define A_READ_RESP 0x03
-#define A 0x03
+#define A_3 0x03
+#define A_1 0x01
 #define C_I 0x0
 #define C_SET 0x03
 #define C_UA 0x07
@@ -42,6 +41,7 @@
 
 static bool timedOut = false;
 static struct termios oldtio;
+static enum CommsType global_type;
 
 void sigAlarmHandler(int sig) {
 	timedOut = true;
@@ -255,9 +255,9 @@ enum CommsType {
  */
 void makeSetMsg(char *setMsg) {
 	setMsg[0] = FLAG;
-	setMsg[1] = A;
+	setMsg[1] = A_3;
 	setMsg[2] = C_SET;
-	setMsg[3] = A ^ C_SET;
+	setMsg[3] = A_3 ^ C_SET;
 	setMsg[4] = FLAG;
 }
 
@@ -266,9 +266,9 @@ void makeSetMsg(char *setMsg) {
  */
 void makeUaMsg(char *uaMsg) {
 	uaMsg[0] = FLAG;
-	uaMsg[1] = A;
+	uaMsg[1] = A_3;
 	uaMsg[2] = C_UA;
-	uaMsg[3] = A ^ C_UA;
+	uaMsg[3] = A_3 ^ C_UA;
 	uaMsg[4] = FLAG;
 }
 
@@ -296,9 +296,9 @@ int llopenTransmitter(int fd) {
 		if (timedOut) {
 			numTimeOuts++;
 			if (numTimeOuts <= MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out on connection establishment. Retrying.", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on connection establishment. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out on connection establishment. Exiting.", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on connection establishment. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
 			}
 		}
 	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
@@ -324,6 +324,7 @@ int llopenReceiver(int fd) {
 }
 
 int llopen(char port[], enum CommsType type) {
+	global_type = type;
 	int fd = setupConnection(port);
 	switch (type) {
 		case TRANSMITTER:
@@ -355,7 +356,7 @@ int makeFrame(char *data, int dataLength, char seqNum, char **frame, int *frameL
 	}
 
 	(*frame)[0] = FLAG;
-	(*frame)[1] = A;
+	(*frame)[1] = A_3;
 	(*frame)[2] = C_I | (seqNum << 6);
 	(*frame)[3] = (*frame)[1] ^ (*frame)[2];
 
@@ -472,9 +473,9 @@ int sendReady(int fd, char seqNumber) {
 	bzero(response, responseSize);
 
 	response[0] = FLAG;
-	response[1] = A;
+	response[1] = A_3;
 	response[2] = C_RR | (seqNumber << 7);
-	response[3] = A ^ (C_RR | (seqNumber << 7));
+	response[3] = A_3 ^ (C_RR | (seqNumber << 7));
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
@@ -492,9 +493,9 @@ int sendRejection(int fd, char seqNumber) {
 	bzero(response, responseSize);
 
 	response[0] = FLAG;
-	response[1] = A;
+	response[1] = A_3;
 	response[2] = C_REJ | (seqNumber << 7);
-	response[3] = A ^ (C_REJ | (seqNumber << 7));
+	response[3] = A_3 ^ (C_REJ | (seqNumber << 7));
 	response[4] = FLAG;
 
 	if (write(fd, response, responseSize) == -1) {
@@ -618,9 +619,9 @@ int llwrite(int fd, char *data, int dataLength) {
 		if (timedOut) {
 			++numTimeOuts;
 			if (numTimeOuts <= MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out on connection establishment. Retrying.", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on connection establishment. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out on connection establishment. Exiting.", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on connection establishment. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
 			}
 		}
 
@@ -632,6 +633,149 @@ int llwrite(int fd, char *data, int dataLength) {
 		return 0;
 	} else {
 		return dataLength;
+	}
+}
+
+/**
+ * discMsg must already be allocated with 5 chars.
+ */
+void makeTransDiscMsg(char *discMsg) {
+	discMsg[0] = FLAG;
+	discMsg[1] = A_3;
+	discMsg[2] = C_DISC;
+	discMsg[3] = A_3 ^ C_DISC;
+	discMsg[4] = FLAG;
+}
+
+/**
+ * discMsg must already be allocated with 5 chars.
+ */
+void makeReceiverDiscMsg(char *discMsg) {
+	discMsg[0] = FLAG;
+	discMsg[1] = A_1;
+	discMsg[2] = C_DISC;
+	discMsg[3] = A_1 ^ C_DISC;
+	discMsg[4] = FLAG;
+}
+
+void makeTransUaMsg(char *uaMsg) {
+	uaMsg[0] = FLAG;
+	uaMsg[1] = A_1;
+	uaMsg[2] = C_UA;
+	uaMsg[3] = A_1 ^ C_UA;
+	uaMsg[4] = FLAG;
+}
+
+/**
+ * Returns 1 if success, -1 if error.
+ */
+int llcloseTransmitter(int fd) {
+	int numTimeOuts = 0;
+	int discMsgSize = 5;
+	char discMsg[5];
+	makeTransDiscMsg(discMsg);
+	do {
+		timedOut = false;
+		if (write(fd, discMsg, discMsgSize) == -1) {
+			perror("llcloseTransmitter - write");
+			return -1;
+		}
+		alarm(3);
+		signal(SIGALRM, sigAlarmHandler);
+
+		enum FrameTypeRes res;
+		char *frame = NULL;
+		int frameLength = 0;
+		do {
+			res = readFrame(fd, &frame, &frameLength);
+		} while (res != DISC && !timedOut);
+
+		alarm(0);
+
+		if (timedOut) {
+			numTimeOuts++;
+			if (numTimeOuts <= MAX_TIME_OUTS) {
+				printf("%d/%d: Timed out on disconnection. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+			} else {
+				printf("%d/%d: Timed out on disconnection. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				return -1;
+			}
+		}
+	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
+
+	int uaMsgSize = 5;
+	char uaMsg[5];
+	makeTransUaMsg(uaMsg);
+	if (write(fd, uaMsg, uaMsgSize) == -1) {
+		perror("llcloseTransmitter - write");
+		return -1;
+	}
+
+	return 1;
+}
+
+/**
+ * Returns 1 if success, -1 if error.
+ */
+int llcloseReceiver(int fd) {
+	enum FrameTypeRes res;
+	char *frame = NULL;
+	int frameLength = 0;
+	do {
+		res = readFrame(fd, &frame, &frameLength);
+	} while (res != DISC);
+
+	int discMsgSize = 5;
+	char discMsg[5];
+	makeReceiverDiscMsg(discMsg);
+
+	int numTimeOuts = 0;
+	do {
+		timedOut = false;
+		if (write(fd, discMsg, discMsgSize) == -1) {
+			perror("llcloseReceiver - write");
+			return -1;
+		}
+		alarm(3);
+		signal(SIGALRM, sigAlarmHandler);
+
+		enum FrameTypeRes res;
+		char *frame = NULL;
+		int frameLength = 0;
+		do {
+			res = readFrame(fd, &frame, &frameLength);
+		} while (res != DISC && !timedOut);
+
+		alarm(0);
+
+		if (timedOut) {
+			numTimeOuts++;
+			if (numTimeOuts <= MAX_TIME_OUTS) {
+				printf("%d/%d: Timed out on disconnection acknowledgement. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+			} else {
+				printf("%d/%d: Timed out on disconnection acknowledgement. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				return -1;
+			}
+		}
+	} while (timedOut && numTimeOuts < MAX_TIME_OUTS);
+
+	return 1;
+}
+
+/**
+ * Returns 1 if success, -1 if error.
+ */
+int llclose(int fd) {
+	switch (global_type) {
+		case TRANSMITTER:
+			return llcloseTransmitter(fd);
+		case RECEIVER:
+			return llcloseReceiver(fd);
+		default:
+			#ifdef DEBUG
+			printf("llclose(): Invalid CommsType.\n");
+			#endif
+			return -1;
 	}
 }
 
