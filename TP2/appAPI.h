@@ -72,6 +72,7 @@ int processStartPacket(char *packet, int packetLength, int *fileLength, char **f
         memcpy(fileSizeChars, packet + bytesRead + TLV_V, vLength);
         fileSizeChars[vLength] = '\0';
         readFileSize(fileSizeChars, fileLength, vLength);
+		free(fileSizeChars);
         setSize = true;
         break;
       case T_FILE_NAME:
@@ -79,6 +80,10 @@ int processStartPacket(char *packet, int packetLength, int *fileLength, char **f
           break;
         }
         *filename = malloc(vLength);
+		if (filename == NULL) {
+			perror("processStartPacket - malloc");
+			return -1;
+		}
         memcpy(*filename, packet + bytesRead + TLV_V, vLength);
         setName = true;
         break;
@@ -152,35 +157,43 @@ int appRead(char port[]) {
         break;
       case START_PACKET:
         if (processStartPacket(packet, packetLength, &fileLength, &filename) == -1) {
-          return -1;
+			free(packet);
+        	return -1;
         }
         startPacket = malloc(packetLength);
         memcpy(startPacket, packet, packetLength);
         break;
       case END_PACKET:
         if (processEndPacket(packet, startPacket, packetLength) == -1) {
-          printf("appRead(): processEndPacket failed.\n");
-          return -1;
+        	printf("appRead(): processEndPacket failed.\n");
+			free(packet);
+			free(fileBuffer);
+	        return -1;
         }
         finished = true;
         break;
     }
+	free(packet);
   }
 
+  free(startPacket);
+
   if (llclose(fd) == -1) {
-      printf("appRead(): llclose() failed\n");;
+      printf("appRead(): llclose() failed\n");
+	  free(filename);
+	  free(fileBuffer);
       return -1;
   }
 
   if (writeLocalFile(filename, fileBuffer, fileBufferLength) == -1) {
     printf("appRead(): writeLocalFile() failed.\n");
+	free(filename);
+  	free(fileBuffer);
     return -1;
   }
 
   free(filename);
   free(fileBuffer);
-  free(startPacket);
-  free(packet);
 
   printf("\n\n");
   printReceiverReport(fileBufferLength, fileLength, seqNumMismatches);

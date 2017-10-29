@@ -527,6 +527,7 @@ int llread(int fd, char **packet) {
 			if (res == DATA) {
 				break;
 			}
+			free(stuffedFrame);
 		}
 
 		char *frame = NULL;
@@ -535,8 +536,10 @@ int llread(int fd, char **packet) {
 			#ifdef DEBUG
 			printf("llread(): unstuffFrame failed.\n");
 			#endif
+			free(stuffedFrame);
 			return -1;
 		}
+		free(stuffedFrame);
 		frameC = frame[2];
 
 		if (extractPacket(packet, &packetLength, frame, frameLength) == -1) {
@@ -558,6 +561,8 @@ int llread(int fd, char **packet) {
 			sendReady(fd, !previousSeqNum);
 			rejected = false;
 		}
+
+		free(frame);
 
 		if (rejected) {
 			numRejects++;
@@ -725,6 +730,7 @@ int llcloseReceiver(int fd) {
 	int frameLength = 0;
 	do {
 		res = readFrame(fd, &frame, &frameLength);
+		free(frame);
 	} while (res != DISC);
 
 	int discMsgSize = 5;
@@ -746,6 +752,7 @@ int llcloseReceiver(int fd) {
 		int frameLength = 0;
 		do {
 			res = readFrame(fd, &frame, &frameLength);
+			free(frame);
 		} while (res != UA && !timedOut);
 
 		alarm(0);
