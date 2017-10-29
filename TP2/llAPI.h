@@ -54,8 +54,7 @@ enum FrameTypeRes {
 	UA,
 	RR,
 	REJ,
-	IGNORE,
-	ERROR
+	IGNORE
 };
 
 enum ReadFrameState {
@@ -201,44 +200,48 @@ enum FrameTypeRes readFrame(int fd, char **frame, int *frameLength) {
 				}
 		}
 	}
+	#ifdef DEBUG
+	printf("readFrame(): Low level reading state machine in invalid state. Exitting.\n");
+	exit(-1);
+	#endif
 }
 
 int setupConnection(char port[]) {
-	
+
 	/*
 	Open serial port device for reading and writing and not as controlling tty
 	because we don't want to get killed if linenoise sends CTRL-C.
 	 */
-	
+
 	int fd = open(port, O_RDWR | O_NOCTTY, S_IRWXU | S_IRWXG | S_IRWXO);
 	if (fd <0) {perror(port); exit(-1); }
-	
+
 	struct termios newtio;
 	if (tcgetattr(fd, &oldtio) == -1) { /* save current port settings */
 		perror("tcgetattr");
 		exit(-1);
 	}
-	
+
 	bzero(&newtio, sizeof(newtio));
 	newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
 	newtio.c_iflag = IGNPAR;
 	newtio.c_oflag = 0;
-	
+
 	/* set input mode (non-canonical, no echo,...) */
 	newtio.c_lflag = 0;
-	
+
 	newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
 	newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
-	
+
 	tcflush(fd, TCIOFLUSH);
-	
+
 	if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
 		perror("tcsetattr");
 		exit(-1);
 	}
-	
+
 	printf("New termios structure set\n");
-	
+
 	return fd;
 }
 
@@ -258,6 +261,9 @@ void makeSetMsg(char *setMsg) {
 	setMsg[4] = FLAG;
 }
 
+/**
+ * uaMsg must already be allocated with 5 chars.
+ */
 void makeUaMsg(char *uaMsg) {
 	uaMsg[0] = FLAG;
 	uaMsg[1] = A;
@@ -272,6 +278,7 @@ int llopenTransmitter(int fd) {
 	int setMsgSize = 5;
 	makeSetMsg(setMsg);
 	do {
+		timedOut = false;
 		if (write(fd, setMsg, setMsgSize) == -1) {
 			perror("llopenTransmitter - write");
 			return -1;
@@ -312,7 +319,7 @@ int llopenReceiver(int fd) {
 		perror("llopenReceiver - write");
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -337,6 +344,295 @@ int llopen(char port[], enum CommsType type) {
 			break;
 	}
 	return fd;
+}
+
+int makeFrame(char *data, int dataLength, char seqNum, char **frame, int *frameLength) {
+	*frameLength = 4 + dataLength + 2;
+	*frame = malloc(*frameLength);
+	if (*frame == NULL) {
+		perror("makeFrame - malloc");
+		return -1;
+	}
+
+	(*frame)[0] = FLAG;
+	(*frame)[1] = A;
+	(*frame)[2] = C_I | (seqNum << 6);
+	(*frame)[3] = (*frame)[1] ^ (*frame)[2];
+
+	char BCC2 = 0;
+	for (int dataInd = 0, frameInd = 4; dataInd < dataLength; dataInd++, frameInd++) {
+		(*frame)[frameInd] = data[dataInd];
+		BCC2 ^= data[dataInd];
+	}
+
+	(*frame)[*frameLength - 2] = BCC2;
+	(*frame)[*frameLength - 1] = FLAG;
+
+	return 0;
+}
+
+/**
+ * Outputs stuffedFrame, allocating it. Its length is greater or equal to the original frame's length.
+ * Start and stop flags aren't stuffed.
+ */
+int stuffFrame(char *frame, int frameLength, char **stuffedFrame, int *stuffedFrameLength) {
+	*stuffedFrameLength = frameLength;
+	*stuffedFrame = malloc(*stuffedFrameLength);
+	if (*stuffedFrame == NULL) {
+		printf("stuffFrame - malloc");
+		return -1;
+	}
+
+	(*stuffedFrame)[0] = FLAG;
+	for (int unstuffedInd = 1, stuffedInd = 1; unstuffedInd < frameLength; unstuffedInd++, stuffedInd++) {
+		switch (frame[unstuffedInd]) {
+			case FLAG:
+				(*stuffedFrameLength)++;
+				*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
+				if (*stuffedFrame == NULL) {
+					perror("stuffFrame - realloc");
+					return -1;
+				}
+				(*stuffedFrame)[stuffedInd++] = ESC;
+				(*stuffedFrame)[stuffedInd] = FLAG ^ 0x20;
+				break;
+			case ESC:
+				(*stuffedFrameLength)++;
+				*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
+				if (*stuffedFrame == NULL) {
+					perror("stuffFrame - realloc");
+					return -1;
+				}
+				(*stuffedFrame)[stuffedInd++] = ESC;
+				(*stuffedFrame)[stuffedInd] = ESC ^ 0x20;
+				break;
+			default:
+				(*stuffedFrame)[stuffedInd] = frame[unstuffedInd];
+		}
+	}
+	(*stuffedFrame)[*stuffedFrameLength - 1] = FLAG;
+
+	return 0;
+}
+
+int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame, int *frameLength) {
+	*frameLength = stuffedFrameLength;
+	*frame = malloc(*frameLength);
+	if (*frame == NULL) {
+		perror("unstuffFrame - malloc");
+		return -1;
+	}
+
+	(*frame)[0] = FLAG;
+	for (int stuffedInd = 1, unstuffedInd = 1; stuffedInd < stuffedFrameLength; stuffedInd++, unstuffedInd++) {
+		switch (stuffedFrame[stuffedInd]) {
+			case ESC:
+				(*frameLength)++;
+				*frame = realloc(*frame, *frameLength);
+				stuffedInd++;
+				(*frame)[unstuffedInd] = stuffedFrame[stuffedInd] ^ 0x20;
+				break;
+			default:
+				(*frame)[unstuffedInd] = stuffedFrame[stuffedInd];
+				break;
+		}
+	}
+	(*frame)[*frameLength - 1] = FLAG;
+
+	return 0;
+}
+
+int extractPacket(char **packet, int *packetLength, char *frame, int frameLength) {
+	*packetLength = -4 + frameLength - 2;
+	*packet = malloc(*packetLength);
+	if (*packet == NULL) {
+		perror("extractPacket - malloc");
+		return -1;
+	}
+	memcpy(*packet, frame + 4, *packetLength);
+	return 0;
+}
+
+bool validPacketBCC(char *packet, int packetLength, char BCC2) {
+	char acc = 0;
+	for (int i = 0; i < packetLength; i++) {
+		acc ^= packet[i];
+	}
+	return BCC2 == acc;
+}
+
+bool frameIsDuplicated(char *frame, char previousSeqNum) {
+	return previousSeqNum == (I_FRAMES_SEQ_NUM_BIT(frame[2]));
+}
+
+int sendReady(int fd, char seqNumber) {
+	int responseSize = 5;
+	char response[responseSize];
+
+	bzero(response, responseSize);
+
+	response[0] = FLAG;
+	response[1] = A;
+	response[2] = C_RR | (seqNumber << 7);
+	response[3] = A ^ (C_RR | (seqNumber << 7));
+	response[4] = FLAG;
+
+	if (write(fd, response, responseSize) == -1) {
+		printf("sendReady(): write failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int sendRejection(int fd, char seqNumber) {
+	int responseSize = 5;
+	char response[responseSize];
+
+	bzero(response, responseSize);
+
+	response[0] = FLAG;
+	response[1] = A;
+	response[2] = C_REJ | (seqNumber << 7);
+	response[3] = A ^ (C_REJ | (seqNumber << 7));
+	response[4] = FLAG;
+
+	if (write(fd, response, responseSize) == -1) {
+		printf("sendReady(): write failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+/**
+ * @return Buffer length (bytes read), -1 if error.
+ */
+int llread(int fd, char **packet) {
+	static char previousSeqNum = -1;
+	bool rejected = false;
+	int numRejects = 0;
+	int packetLength = 0;
+
+	char frameC = 0;
+
+	do {
+		rejected = false;
+		char *stuffedFrame = NULL;
+		int stuffedFrameLength = 0;
+		while (true) {
+			enum FrameTypeRes res = readFrame(fd, &stuffedFrame, &stuffedFrameLength);
+			if (res == DATA) {
+				break;
+			}
+		}
+
+		char *frame = NULL;
+		int frameLength = 0;
+		if (unstuffFrame(stuffedFrame, stuffedFrameLength, &frame, &frameLength) == -1) {
+			#ifdef DEBUG
+			printf("llread(): unstuffFrame failed.\n");
+			#endif
+			return -1;
+		}
+		frameC = frame[2];
+
+		if (extractPacket(packet, &packetLength, frame, frameLength) == -1) {
+			#ifdef DEBUG
+			printf("llread(): extractPacket failed.\n");
+			#endif
+			return -1;
+		}
+		char BCC2 = frame[frameLength - 2];
+		if (!validPacketBCC(*packet, packetLength, BCC2)) {
+			if (frameIsDuplicated(frame, previousSeqNum)) {
+				sendReady(fd, !previousSeqNum);
+				rejected = false;
+			} else {
+				sendRejection(fd, !previousSeqNum);
+				rejected = true;
+			}
+		} else {
+			sendReady(fd, !previousSeqNum);
+			rejected = false;
+		}
+
+		if (rejected) {
+			numRejects++;
+			#ifdef DEBUG
+			printf("llread(): Packet rejected.\n");
+			#endif
+		}
+	} while (rejected && numRejects < MAX_REJS);
+	previousSeqNum = !I_FRAMES_SEQ_NUM_BIT(frameC);
+
+	if (numRejects < MAX_REJS) {
+		return packetLength;
+	} else {
+		return 0;
+	}
+}
+
+/**
+ * @return Bytes written, -1 if error.
+ */
+int llwrite(int fd, char *data, int dataLength) {
+	static char seqNum = 0;
+	char *frame = NULL;
+	int frameLength = 0;
+	char *stuffedFrame = NULL;
+	int stuffedFrameLength = 0;
+	char *responseFrame = NULL;
+	int responseFrameLength = 0;
+	int numTimeOuts = 0;
+
+	makeFrame(data, dataLength, seqNum, &frame, &frameLength);
+	stuffFrame(frame, frameLength, &stuffedFrame, &stuffedFrameLength);
+	do {
+		timedOut = false;
+		if (write(fd, frame, frameLength) == -1) {
+			perror("llwrite - write");
+			return -1;
+		}
+		alarm(3);
+		signal(SIGALRM, sigAlarmHandler);
+		enum FrameTypeRes res;
+		bool accepted = false;
+		do {
+			res = readFrame(fd, &responseFrame,  &responseFrameLength);
+			switch (res) {
+				case RR:
+					accepted = true;
+					break;
+				case REJ:
+					accepted = false;
+					break;
+				case IGNORE:
+					accepted = true;
+					break;
+				default:
+					continue;
+			}
+		} while (!timedOut && !accepted);
+
+		if (timedOut) {
+			++numTimeOuts;
+			if (numTimeOuts <= MAX_TIME_OUTS) {
+				printf("%d/%d: Timed out on connection establishment. Retrying.", numTimeOuts, MAX_TIME_OUTS);
+			} else {
+				printf("%d/%d: Timed out on connection establishment. Exiting.", numTimeOuts, MAX_TIME_OUTS);
+			}
+		}
+
+	} while(timedOut && numTimeOuts < MAX_TIME_OUTS);
+
+	alarm(0);
+
+	if (numTimeOuts >= MAX_TIME_OUTS) {
+		return 0;
+	} else {
+		return dataLength;
+	}
 }
 
 /* enum LLOpenState {
@@ -732,7 +1028,7 @@ int llwrite(int fd, char *data, int dataLength) {
 			continue;
 		}
 	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (rejected && numRejects < MAX_REJS));
-	
+
 	free(stuffedData);
 
 	#ifdef DEBUG
