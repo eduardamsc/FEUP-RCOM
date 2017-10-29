@@ -129,7 +129,7 @@ int appRead(char port[]) {
   int fileLength = 0;
   int packetLength = 0;
   bool finished = false;
-  int fd = llopen_read(port);
+  int fd = llopen(port, RECEIVER);
 
   while (!finished) {
     if ((packetLength = llread(fd, &packet)) == -1) {
@@ -157,7 +157,7 @@ int appRead(char port[]) {
     }
   }
 
-  if (llclose_Receiver(fd) == -1) {
+  if (llclose(fd) == -1) {
       printf("appRead(): llclose_Receiver() failed\n");;
       return -1;
   }
@@ -176,7 +176,7 @@ int appRead(char port[]) {
 }
 
 int appWrite(char port[], char filename[]) {
-  int portFd = llopen(port);
+  int portFd = llopen(port, TRANSMITTER);
   if (portFd == -1) {
     printf("appWrite(): Failed to open connection.\n");
     return -1;
@@ -261,7 +261,7 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
-  if (llclose_Transmitter(portFd) == -1) {
+  if (llclose(portFd) == -1) {
     printf("appWrite(): Failed to disconnect.\n");
     return -1;
   }
