@@ -295,7 +295,7 @@ int llopenTransmitter(int fd) {
 
 		if (timedOut) {
 			numTimeOuts++;
-			if (numTimeOuts <= MAX_TIME_OUTS) {
+			if (numTimeOuts < MAX_TIME_OUTS) {
 				printf("%d/%d: Timed out on connection establishment. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
 				printf("%d/%d: Timed out on connection establishment. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
@@ -618,7 +618,7 @@ int llwrite(int fd, char *data, int dataLength) {
 
 		if (timedOut) {
 			++numTimeOuts;
-			if (numTimeOuts <= MAX_TIME_OUTS) {
+			if (numTimeOuts < MAX_TIME_OUTS) {
 				printf("%d/%d: Timed out on connection establishment. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
 				printf("%d/%d: Timed out on connection establishment. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
@@ -694,7 +694,7 @@ int llcloseTransmitter(int fd) {
 
 		if (timedOut) {
 			numTimeOuts++;
-			if (numTimeOuts <= MAX_TIME_OUTS) {
+			if (numTimeOuts < MAX_TIME_OUTS) {
 				printf("%d/%d: Timed out on disconnection. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
 				printf("%d/%d: Timed out on disconnection. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
@@ -744,13 +744,13 @@ int llcloseReceiver(int fd) {
 		int frameLength = 0;
 		do {
 			res = readFrame(fd, &frame, &frameLength);
-		} while (res != DISC && !timedOut);
+		} while (res != UA && !timedOut);
 
 		alarm(0);
 
 		if (timedOut) {
 			numTimeOuts++;
-			if (numTimeOuts <= MAX_TIME_OUTS) {
+			if (numTimeOuts < MAX_TIME_OUTS) {
 				printf("%d/%d: Timed out on disconnection acknowledgement. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
 			} else {
 				printf("%d/%d: Timed out on disconnection acknowledgement. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
