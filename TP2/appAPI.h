@@ -1,6 +1,7 @@
 #include "llAPI.h"
 #include <stdio.h>
 #include <math.h>
+#include <sys/time.h>
 
 #define C_APP 0
 #define TLV_T 0
@@ -18,6 +19,13 @@
 #define DATA_PACKET 1
 #define START_PACKET 2
 #define END_PACKET 3
+
+struct ExecTimes {
+  struct timeval *startTime;
+  struct timeval *startDataTime;
+  struct timeval *endDataTime;
+  struct timeval *endTime;
+};
 
 void readFileSize(char *fileSizeChars, int *fileLength, int arrayLength) {
   *fileLength = 0;
@@ -133,12 +141,34 @@ int writeLocalFile(char *filename, char *fileBuffer, int fileBufferLength) {
   return 0;
 }
 
-void printReceiverReport(int receivedBytes, int originalFileSize, int seqNumMismatches) {
+void printReceiverReport(int receivedBytes, int originalFileSize, int seqNumMismatches, struct ExecTimes *times) {
+  time_t totalSeconds = times->endTime->tv_sec - times->startTime->tv_sec;
+  suseconds_t totalMicroseconds;
+  if (times->endTime->tv_usec > times->startTime->tv_usec) {
+    totalMicroseconds = times->endTime->tv_usec - times->startTime->tv_usec;
+  } else {
+      totalMicroseconds = times->startTime->tv_usec - times->endTime ->tv_usec;
+  }
+
+  time_t dataSeconds = times->endDataTime->tv_sec - times->startDataTime->tv_sec;
+  suseconds_t dataMicroseconds;
+  if (times->endDataTime->tv_usec > times->startDataTime->tv_usec) {
+    dataMicroseconds = times->endDataTime->tv_usec - times->startDataTime->tv_usec;
+  } else {
+      dataMicroseconds = times->startDataTime->tv_usec - times->endDataTime ->tv_usec;
+  }
+
   printf("Received bytes: %d out of %d.\n", receivedBytes, originalFileSize);
   printf("Sequence number mismatches: %d.\n", seqNumMismatches);
+  printf("Data transfer time: %.3fs.\n", dataSeconds + (double) dataMicroseconds / pow(10, 6));
+  printf("Total time: %.3fs.\n", totalSeconds + (double) totalMicroseconds / pow(10, 6));
 }
 
 int appRead(char port[]) {
+  struct timeval startTime;
+  if (gettimeofday(&startTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
   char *filename = NULL;
   char *fileBuffer = NULL, *packet = NULL, *startPacket = NULL;
   int fileBufferLength = 0;
@@ -147,6 +177,11 @@ int appRead(char port[]) {
   bool finished = false;
   int seqNumMismatches = 0;
   int fd = llopen(port, RECEIVER);
+
+  struct timeval startDataTime;
+  if (gettimeofday(&startDataTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
 
   while (!finished) {
     if ((packetLength = llread(fd, &packet)) == -1) {
@@ -184,6 +219,11 @@ int appRead(char port[]) {
 
   free(startPacket);
 
+  struct timeval endDataTime;
+  if (gettimeofday(&endDataTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
+
   if (llclose(fd) == -1) {
       printf("appRead(): llclose() failed\n");
 	    free(filename);
@@ -201,17 +241,46 @@ int appRead(char port[]) {
   free(filename);
   free(fileBuffer);
 
+  struct timeval endTime;
+  if (gettimeofday(&endTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
+
+  struct ExecTimes times = {&startTime, &startDataTime, &endDataTime, &endTime};
+
   printf("\n\n");
-  printReceiverReport(fileBufferLength, fileLength, seqNumMismatches);
+  printReceiverReport(fileBufferLength, fileLength, seqNumMismatches, &times);
 
   return 0;
 }
 
-void printTransmitterReport(int bytesSent, int fileSize) {
+void printTransmitterReport(int bytesSent, int fileSize, struct ExecTimes *times) {
+  time_t totalSeconds = times->endTime->tv_sec - times->startTime->tv_sec;
+  suseconds_t totalMicroseconds;
+  if (times->endTime->tv_usec > times->startTime->tv_usec) {
+    totalMicroseconds = times->endTime->tv_usec - times->startTime->tv_usec;
+  } else {
+      totalMicroseconds = times->startTime->tv_usec - times->endTime ->tv_usec;
+  }
+
+  time_t dataSeconds = times->endDataTime->tv_sec - times->startDataTime->tv_sec;
+  suseconds_t dataMicroseconds;
+  if (times->endDataTime->tv_usec > times->startDataTime->tv_usec) {
+    dataMicroseconds = times->endDataTime->tv_usec - times->startDataTime->tv_usec;
+  } else {
+      dataMicroseconds = times->startDataTime->tv_usec - times->endDataTime ->tv_usec;
+  }
+
   printf("Transmitted bytes: %d out of %d.\n", bytesSent, fileSize);
+  printf("Data transfer time: %.3fs.\n", dataSeconds + (double) dataMicroseconds / pow(10, 6));
+  printf("Total time: %.3fs.\n", totalSeconds + (double) totalMicroseconds / pow(10, 6));
 }
 
 int appWrite(char port[], char filename[]) {
+  struct timeval startTime;
+  if (gettimeofday(&startTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
   int portFd = llopen(port, TRANSMITTER);
   if (portFd == -1) {
     printf("appWrite(): Failed to open connection.\n");
@@ -250,18 +319,23 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
-  char buffer[0xFF];
+  struct timeval startDataTime;
+  if (gettimeofday(&startDataTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
+
+  char buffer[1024];
   char n = 0;
   int bytesRead = -2;
   int totalBytesWritten = 0;
-  while (bytesRead = fread(buffer, 1, 0xFF, fp)) {
+  while (bytesRead = fread(buffer, 1, 1024, fp)) {
     char dataPacket[bytesRead + 4];
     bzero(dataPacket, bytesRead + 4);
 
     dataPacket[0] = DATA_PACKET;
     dataPacket[1] = n % 255;
-    dataPacket[2] = 0;
-    dataPacket[3] = bytesRead;
+    dataPacket[2] = bytesRead / 256;
+    dataPacket[3] = bytesRead % 256;
 
     memcpy(dataPacket + 4, buffer, bytesRead);
 
@@ -283,6 +357,11 @@ int appWrite(char port[], char filename[]) {
   if (fclose(fp) == EOF) {
     perror("appWrite - fclose");
     return -1;
+  }
+
+  struct timeval endDataTime;
+  if (gettimeofday(&endDataTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
   }
 
   char endPacket[9 + strlen(filename)];
@@ -308,8 +387,15 @@ int appWrite(char port[], char filename[]) {
     return -1;
   }
 
+  struct timeval endTime;
+  if (gettimeofday(&endTime, NULL) == -1) {
+    perror("appWrite - startup gettimeofday");
+  }
+
+  struct ExecTimes times = {&startTime, &startDataTime, &endDataTime, &endTime};
+
   printf("\n\n");
-  printTransmitterReport(totalBytesWritten, fileSize);
+  printTransmitterReport(totalBytesWritten, fileSize, &times);
 
   return 0;
 }
