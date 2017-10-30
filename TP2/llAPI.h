@@ -520,6 +520,7 @@ int llread(int fd, char **packet) {
 	int packetLength = 0;
 
 	char frameC = 0;
+	bool discardedPacket = false;
 
 	do {
 		rejected = false;
@@ -529,6 +530,9 @@ int llread(int fd, char **packet) {
 			enum FrameTypeRes res = readFrame(fd, &stuffedFrame, &stuffedFrameLength);
 			if (res == DATA) {
 				break;
+			} else if (res == IGNORE) {
+				*packet = NULL;
+				return 0;
 			}
 			free(stuffedFrame);
 		}
@@ -559,8 +563,15 @@ int llread(int fd, char **packet) {
 			} else {
 				sendRejection(fd, !previousSeqNum);
 				rejected = true;
+				free(*packet);
+				*packet = NULL;
 			}
 		} else {
+			if (frameIsDuplicated(frame, previousSeqNum)) {
+				free(*packet);
+				*packet = NULL;
+				discardedPacket = true;
+			}
 			sendReady(fd, !previousSeqNum);
 			rejected = false;
 		}
@@ -574,9 +585,9 @@ int llread(int fd, char **packet) {
 			#endif
 		}
 	} while (rejected && numRejects < MAX_REJS);
-	previousSeqNum = !I_FRAMES_SEQ_NUM_BIT(frameC);
+	previousSeqNum = I_FRAMES_SEQ_NUM_BIT(frameC);
 
-	if (numRejects < MAX_REJS) {
+	if (!rejected && !discardedPacket) {
 		return packetLength;
 	} else {
 		return 0;
@@ -619,6 +630,7 @@ int llwrite(int fd, char *data, int dataLength) {
 			switch (res) {
 				case RR:
 					accepted = true;
+					seqNum = S_U_FRAMES_SEQ_NUM_BIT(responseFrame[2]);
 					break;
 				case REJ:
 					accepted = false;

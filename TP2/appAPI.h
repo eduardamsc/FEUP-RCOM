@@ -41,6 +41,9 @@ int processDataPacket(char *packet, char **fileBuffer, int *fileBufferLength, in
   } else if ((prevSeqNum + 1) % 255 != sequenceNumber) {
     printf("Warning: Sequence number mismatch in data packet.\n");
     (*seqNumMismatches)++;
+    #ifdef DEBUG
+    printf("prevSeqNum = %d | sequenceNumber = %d\n", prevSeqNum, sequenceNumber);
+    #endif
   }
 
   int dataSize = 256 * (unsigned char) packet[DATA_L2] + (unsigned char) packet[DATA_L1];
@@ -150,6 +153,9 @@ int appRead(char port[]) {
       printf("appRead(): llread() failed\n");
       return -1;
     }
+    if (packet == NULL) {
+      continue;
+    }
     switch (packet[C_APP]) {
       case DATA_PACKET:
         processDataPacket(packet, &fileBuffer, &fileBufferLength, &seqNumMismatches);
@@ -157,7 +163,7 @@ int appRead(char port[]) {
         break;
       case START_PACKET:
         if (processStartPacket(packet, packetLength, &fileLength, &filename) == -1) {
-			free(packet);
+			    free(packet);
         	return -1;
         }
         startPacket = malloc(packetLength);
@@ -166,28 +172,28 @@ int appRead(char port[]) {
       case END_PACKET:
         if (processEndPacket(packet, startPacket, packetLength) == -1) {
         	printf("appRead(): processEndPacket failed.\n");
-			free(packet);
-			free(fileBuffer);
+			    free(packet);
+			    free(fileBuffer);
 	        return -1;
         }
         finished = true;
         break;
     }
-	free(packet);
+	  free(packet);
   }
 
   free(startPacket);
 
   if (llclose(fd) == -1) {
       printf("appRead(): llclose() failed\n");
-	  free(filename);
-	  free(fileBuffer);
+	    free(filename);
+	    free(fileBuffer);
       return -1;
   }
 
   if (writeLocalFile(filename, fileBuffer, fileBufferLength) == -1) {
     printf("appRead(): writeLocalFile() failed.\n");
-	free(filename);
+	  free(filename);
   	free(fileBuffer);
     return -1;
   }
