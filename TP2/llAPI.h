@@ -467,6 +467,9 @@ bool validPacketBCC(char *packet, int packetLength, char BCC2) {
 }
 
 bool frameIsDuplicated(char *frame, char previousSeqNum) {
+	if (previousSeqNum == -1) {
+		return false;
+	}
 	return previousSeqNum == (I_FRAMES_SEQ_NUM_BIT(frame[2]));
 }
 
@@ -563,8 +566,6 @@ int llread(int fd, char **packet) {
 			} else {
 				sendRejection(fd, !previousSeqNum);
 				rejected = true;
-				free(*packet);
-				*packet = NULL;
 			}
 		} else {
 			if (frameIsDuplicated(frame, previousSeqNum)) {
@@ -585,7 +586,7 @@ int llread(int fd, char **packet) {
 			#endif
 		}
 	} while (rejected && numRejects < MAX_REJS);
-	previousSeqNum = I_FRAMES_SEQ_NUM_BIT(frameC);
+	previousSeqNum = !I_FRAMES_SEQ_NUM_BIT(frameC);
 
 	if (!rejected && !discardedPacket) {
 		return packetLength;
