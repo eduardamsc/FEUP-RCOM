@@ -520,12 +520,17 @@ int llread(int fd, char **packet) {
 	static char previousSeqNum = -1;
 	bool rejected = false;
 	int numRejects = 0;
+	*packet = NULL;
 	int packetLength = 0;
 
 	char frameC = 0;
 	bool discardedPacket = false;
 
 	do {
+		if (*packet != NULL) {
+			free(*packet);
+			*packet = NULL;
+		}
 		discardedPacket = false;
 		rejected = false;
 		char *stuffedFrame = NULL;
@@ -535,7 +540,6 @@ int llread(int fd, char **packet) {
 			if (res == DATA) {
 				break;
 			} else if (res == IGNORE) {
-				*packet = NULL;
 				return 0;
 			}
 			free(stuffedFrame);
