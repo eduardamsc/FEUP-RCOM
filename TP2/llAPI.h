@@ -526,6 +526,7 @@ int llread(int fd, char **packet) {
 	bool discardedPacket = false;
 
 	do {
+		discardedPacket = false;
 		rejected = false;
 		char *stuffedFrame = NULL;
 		int stuffedFrameLength = 0;
@@ -586,7 +587,7 @@ int llread(int fd, char **packet) {
 			#endif
 		}
 	} while (rejected && numRejects < MAX_REJS);
-	previousSeqNum = !I_FRAMES_SEQ_NUM_BIT(frameC);
+	previousSeqNum = I_FRAMES_SEQ_NUM_BIT(frameC);
 
 	if (!rejected && !discardedPacket) {
 		return packetLength;
@@ -628,6 +629,7 @@ int llwrite(int fd, char *data, int dataLength) {
 		do {
 			res = readFrame(fd, &responseFrame,  &responseFrameLength);
 			free(responseFrame);
+			endRead = true;
 			switch (res) {
 				case RR:
 					accepted = true;
