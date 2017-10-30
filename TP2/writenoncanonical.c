@@ -12,13 +12,15 @@ volatile int STOP=FALSE;
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS0\n");
+      printf("Usage:\tSerialPort FileName\n");
+      printf("\tex: /dev/ttyS0 image.png\n");
       exit(1);
     }
 
-  	char filename[] = "yaguas.jpg";
-
-  	appWrite(argv[1], filename);
+  	if (appWrite(argv[1], argv[2]) == -1) {
+      printf("appWrite() failed.\n");
+      return -1;
+    }
 
     return 0;
 }

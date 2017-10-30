@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
   printf("Debug mode: ON.\n");
   #endif
     if (argc < 2) {
-      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS0\n");
+      printf("Usage:\tSerialPort\n\tex: /dev/ttyS0\n");
       exit(1);
     }
 
