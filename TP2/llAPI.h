@@ -559,13 +559,14 @@ int llread(int fd, char **packet) {
 			#endif
 			return -1;
 		}
+
 		char BCC2 = frame[frameLength - 2];
 		if (!validPacketBCC(*packet, packetLength, BCC2)) {
 			if (frameIsDuplicated(frame, previousSeqNum)) {
-				sendReady(fd, !previousSeqNum);
+				sendReady(fd, !I_FRAMES_SEQ_NUM_BIT(frameC));
 				rejected = false;
 			} else {
-				sendRejection(fd, !previousSeqNum);
+				sendRejection(fd, !I_FRAMES_SEQ_NUM_BIT(frameC));
 				rejected = true;
 			}
 		} else {
@@ -574,7 +575,7 @@ int llread(int fd, char **packet) {
 				*packet = NULL;
 				discardedPacket = true;
 			}
-			sendReady(fd, !previousSeqNum);
+			sendReady(fd, !I_FRAMES_SEQ_NUM_BIT(frameC));
 			rejected = false;
 		}
 
