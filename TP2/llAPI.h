@@ -629,7 +629,6 @@ int llwrite(int fd, char *data, int dataLength) {
 		bool endRead = true;
 		do {
 			res = readFrame(fd, &responseFrame,  &responseFrameLength);
-			free(responseFrame);
 			endRead = true;
 			switch (res) {
 				case RR:
@@ -648,8 +647,8 @@ int llwrite(int fd, char *data, int dataLength) {
 					break;
 				default:
 					endRead = false;
-					continue;
 			}
+			free(responseFrame);
 		} while (!timedOut && !endRead);
 
 		alarm(0);
