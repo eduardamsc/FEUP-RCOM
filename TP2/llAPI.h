@@ -48,20 +48,11 @@ void sigAlarmHandler(int sig) {
 }
 
 enum FrameTypeRes {
-	DATA,
-	SET,
-	DISC,
-	UA,
-	RR,
-	REJ,
-	IGNORE,
-	ERROR
+	DATA, SET, DISC, UA, RR, REJ, IGNORE, ERROR
 };
 
 enum ReadFrameState {
-	AWAITING_FLAG,
-	AWAITING_A,
-	AWAITING_C,
+	AWAITING_FLAG, AWAITING_A, AWAITING_C,
 	// C begin
 	FOUND_I,
 	FOUND_SET,
@@ -78,20 +69,20 @@ enum ReadFrameState {
 
 enum ReadFrameState interpretC(char c) {
 	switch (c & 0x3F) { // ignore sequence number
-		case 0x0:
-			return FOUND_I;
-		case 0x3:
-			return FOUND_SET;
-		case 0xB:
-			return FOUND_DISC;
-		case 0x7:
-			return FOUND_UA;
-		case 0x5:
-			return FOUND_RR;
-		case 0x1:
-			return FOUND_REJ;
-		default:
-			return UNKNOWN_C;
+	case 0x0:
+		return FOUND_I;
+	case 0x3:
+		return FOUND_SET;
+	case 0xB:
+		return FOUND_DISC;
+	case 0x7:
+		return FOUND_UA;
+	case 0x5:
+		return FOUND_RR;
+	case 0x1:
+		return FOUND_REJ;
+	default:
+		return UNKNOWN_C;
 	}
 }
 
@@ -112,93 +103,93 @@ enum FrameTypeRes readFrame(int fd, char **frame, int *frameLength) {
 			continue;
 		}
 		switch (state) {
-			case AWAITING_FLAG:
-				if (buf == FLAG) {
-					state = AWAITING_A;
-				}
-				break;
-			case AWAITING_A:
-				if (buf != FLAG) {
-					state = AWAITING_C;
-					(*frame)[1] = buf;
-				}
-				break;
-			case AWAITING_C:
-				state = interpretC(buf);
-				(*frame)[2] = buf;
-				break;
-			case UNKNOWN_C:
+		case AWAITING_FLAG:
+			if (buf == FLAG) {
+				state = AWAITING_A;
+			}
+			break;
+		case AWAITING_A:
+			if (buf != FLAG) {
+				state = AWAITING_C;
+				(*frame)[1] = buf;
+			}
+			break;
+		case AWAITING_C:
+			state = interpretC(buf);
+			(*frame)[2] = buf;
+			break;
+		case UNKNOWN_C:
+			return IGNORE;
+			break;
+		case FOUND_I:
+			state = VALIDATED_BCC_I;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
 				return IGNORE;
-				break;
-			case FOUND_I:
-				state = VALIDATED_BCC_I;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case FOUND_SET:
-				state = VALIDATED_BCC_OTHERS;
-				frameTypeRes = SET;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case FOUND_DISC:
-				state = VALIDATED_BCC_OTHERS;
-				frameTypeRes = DISC;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case FOUND_UA:
-				state = VALIDATED_BCC_OTHERS;
-				frameTypeRes = UA;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case FOUND_RR:
-				state = VALIDATED_BCC_OTHERS;
-				frameTypeRes = RR;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case FOUND_REJ:
-				state = VALIDATED_BCC_OTHERS;
-				frameTypeRes = REJ;
-				(*frame)[3] = buf;
-				if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
-					return IGNORE;
-				}
-				break;
-			case VALIDATED_BCC_I:
-				(*frame)[4] = buf;
-				if (buf == FLAG) {
-					return DATA;
-				} else {
-					state = READING_I_DATA;
-				}
-				break;
-			case VALIDATED_BCC_OTHERS:
-				if (buf != FLAG) {
-					return IGNORE;
-				} else {
-					(*frame)[4] = FLAG;
-					return frameTypeRes;
-				}
-			case READING_I_DATA:
-				(*frameLength)++;
-				*frame = realloc(*frame, *frameLength);
-				(*frame)[*frameLength - 1] = buf;
-				if (buf == FLAG) {
-					return DATA;
-				}
+			}
+			break;
+		case FOUND_SET:
+			state = VALIDATED_BCC_OTHERS;
+			frameTypeRes = SET;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+				return IGNORE;
+			}
+			break;
+		case FOUND_DISC:
+			state = VALIDATED_BCC_OTHERS;
+			frameTypeRes = DISC;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+				return IGNORE;
+			}
+			break;
+		case FOUND_UA:
+			state = VALIDATED_BCC_OTHERS;
+			frameTypeRes = UA;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+				return IGNORE;
+			}
+			break;
+		case FOUND_RR:
+			state = VALIDATED_BCC_OTHERS;
+			frameTypeRes = RR;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+				return IGNORE;
+			}
+			break;
+		case FOUND_REJ:
+			state = VALIDATED_BCC_OTHERS;
+			frameTypeRes = REJ;
+			(*frame)[3] = buf;
+			if (!validBCC1((*frame)[1], (*frame)[2], (*frame)[3])) {
+				return IGNORE;
+			}
+			break;
+		case VALIDATED_BCC_I:
+			(*frame)[4] = buf;
+			if (buf == FLAG) {
+				return DATA;
+			} else {
+				state = READING_I_DATA;
+			}
+			break;
+		case VALIDATED_BCC_OTHERS:
+			if (buf != FLAG) {
+				return IGNORE;
+			} else {
+				(*frame)[4] = FLAG;
+				return frameTypeRes;
+			}
+		case READING_I_DATA:
+			(*frameLength)++;
+			*frame = realloc(*frame, *frameLength);
+			(*frame)[*frameLength - 1] = buf;
+			if (buf == FLAG) {
+				return DATA;
+			}
 		}
 	}
 
@@ -208,12 +199,15 @@ enum FrameTypeRes readFrame(int fd, char **frame, int *frameLength) {
 int setupConnection(char port[]) {
 
 	/*
-	Open serial port device for reading and writing and not as controlling tty
-	because we don't want to get killed if linenoise sends CTRL-C.
+	 Open serial port device for reading and writing and not as controlling tty
+	 because we don't want to get killed if linenoise sends CTRL-C.
 	 */
 
 	int fd = open(port, O_RDWR | O_NOCTTY, S_IRWXU | S_IRWXG | S_IRWXO);
-	if (fd <0) {perror(port); exit(-1); }
+	if (fd < 0) {
+		perror(port);
+		exit(-1);
+	}
 
 	struct termios newtio;
 	if (tcgetattr(fd, &oldtio) == -1) { /* save current port settings */
@@ -229,12 +223,12 @@ int setupConnection(char port[]) {
 	/* set input mode (non-canonical, no echo,...) */
 	newtio.c_lflag = 0;
 
-	newtio.c_cc[VTIME]    = 1;   /* inter-character timer unused (em 100 ms)*/
-	newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
+	newtio.c_cc[VTIME] = 1; /* inter-character timer unused (em 100 ms)*/
+	newtio.c_cc[VMIN] = 0; /* blocking read until 0 chars received */
 
 	tcflush(fd, TCIOFLUSH);
 
-	if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
+	if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
 		perror("tcsetattr");
 		exit(-1);
 	}
@@ -245,8 +239,7 @@ int setupConnection(char port[]) {
 }
 
 enum CommsType {
-	TRANSMITTER,
-	RECEIVER
+	TRANSMITTER, RECEIVER
 };
 
 /**
@@ -296,9 +289,13 @@ int llopenTransmitter(int fd) {
 		if (timedOut) {
 			numTimeOuts++;
 			if (numTimeOuts < MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out on connection establishment. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf(
+						"%d/%d: Timed out on connection establishment. Retrying.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out on connection establishment. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf(
+						"%d/%d: Timed out on connection establishment. Exiting.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 				return -1;
 			}
 		}
@@ -310,7 +307,8 @@ int llopenTransmitter(int fd) {
 int llopenReceiver(int fd) {
 	char *frame = NULL;
 	int frameLength = 0;
-	while (SET != readFrame(fd, &frame, &frameLength)) {}
+	while (SET != readFrame(fd, &frame, &frameLength)) {
+	}
 	free(frame);
 
 	char uaMsg[5];
@@ -328,30 +326,31 @@ int llopen(char port[], enum CommsType type) {
 	global_type = type;
 	int fd = setupConnection(port);
 	switch (type) {
-		case TRANSMITTER:
-			if (llopenTransmitter(fd) == -1) {
-				#ifdef DEBUG
-				printf("llopen(): llopenTransmitter failed.\n");
-				#endif
-				return -1;
-			}
-			break;
-		case RECEIVER:
-			if (llopenReceiver(fd) == -1) {
-				#ifdef DEBUG
-				printf("llopen(): llopenReceiver failed.\n");
-				#endif
-				return -1;
-			}
-			break;
+	case TRANSMITTER:
+		if (llopenTransmitter(fd) == -1) {
+#ifdef DEBUG
+			printf("llopen(): llopenTransmitter failed.\n");
+#endif
+			return -1;
+		}
+		break;
+	case RECEIVER:
+		if (llopenReceiver(fd) == -1) {
+#ifdef DEBUG
+			printf("llopen(): llopenReceiver failed.\n");
+#endif
+			return -1;
+		}
+		break;
 	}
-	#ifdef DEBUG
+#ifdef DEBUG
 	printf("llopen success.\n");
-	#endif
+#endif
 	return fd;
 }
 
-int makeFrame(char *data, int dataLength, char seqNum, char **frame, int *frameLength) {
+int makeFrame(char *data, int dataLength, char seqNum, char **frame,
+		int *frameLength) {
 	*frameLength = 4 + dataLength + 2;
 	*frame = malloc(*frameLength);
 	if (*frame == NULL) {
@@ -365,7 +364,8 @@ int makeFrame(char *data, int dataLength, char seqNum, char **frame, int *frameL
 	(*frame)[3] = (*frame)[1] ^ (*frame)[2];
 
 	char BCC2 = 0;
-	for (int dataInd = 0, frameInd = 4; dataInd < dataLength; dataInd++, frameInd++) {
+	for (int dataInd = 0, frameInd = 4; dataInd < dataLength;
+			dataInd++, frameInd++) {
 		(*frame)[frameInd] = data[dataInd];
 		BCC2 ^= data[dataInd];
 	}
@@ -380,7 +380,8 @@ int makeFrame(char *data, int dataLength, char seqNum, char **frame, int *frameL
  * Outputs stuffedFrame, allocating it. Its length is greater or equal to the original frame's length.
  * Start and stop flags aren't stuffed.
  */
-int stuffFrame(char *frame, int frameLength, char **stuffedFrame, int *stuffedFrameLength) {
+int stuffFrame(char *frame, int frameLength, char **stuffedFrame,
+		int *stuffedFrameLength) {
 	*stuffedFrameLength = frameLength;
 	*stuffedFrame = malloc(*stuffedFrameLength);
 	if (*stuffedFrame == NULL) {
@@ -389,30 +390,31 @@ int stuffFrame(char *frame, int frameLength, char **stuffedFrame, int *stuffedFr
 	}
 
 	(*stuffedFrame)[0] = FLAG;
-	for (int unstuffedInd = 1, stuffedInd = 1; unstuffedInd < frameLength - 1; unstuffedInd++, stuffedInd++) {
+	for (int unstuffedInd = 1, stuffedInd = 1; unstuffedInd < frameLength - 1;
+			unstuffedInd++, stuffedInd++) {
 		switch (frame[unstuffedInd]) {
-			case FLAG:
-				(*stuffedFrameLength)++;
-				*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
-				if (*stuffedFrame == NULL) {
-					perror("stuffFrame - realloc");
-					return -1;
-				}
-				(*stuffedFrame)[stuffedInd++] = ESC;
-				(*stuffedFrame)[stuffedInd] = FLAG ^ 0x20;
-				break;
-			case ESC:
-				(*stuffedFrameLength)++;
-				*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
-				if (*stuffedFrame == NULL) {
-					perror("stuffFrame - realloc");
-					return -1;
-				}
-				(*stuffedFrame)[stuffedInd++] = ESC;
-				(*stuffedFrame)[stuffedInd] = ESC ^ 0x20;
-				break;
-			default:
-				(*stuffedFrame)[stuffedInd] = frame[unstuffedInd];
+		case FLAG:
+			(*stuffedFrameLength)++;
+			*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
+			if (*stuffedFrame == NULL) {
+				perror("stuffFrame - realloc");
+				return -1;
+			}
+			(*stuffedFrame)[stuffedInd++] = ESC;
+			(*stuffedFrame)[stuffedInd] = FLAG ^ 0x20;
+			break;
+		case ESC:
+			(*stuffedFrameLength)++;
+			*stuffedFrame = realloc(*stuffedFrame, *stuffedFrameLength);
+			if (*stuffedFrame == NULL) {
+				perror("stuffFrame - realloc");
+				return -1;
+			}
+			(*stuffedFrame)[stuffedInd++] = ESC;
+			(*stuffedFrame)[stuffedInd] = ESC ^ 0x20;
+			break;
+		default:
+			(*stuffedFrame)[stuffedInd] = frame[unstuffedInd];
 		}
 	}
 	(*stuffedFrame)[*stuffedFrameLength - 1] = FLAG;
@@ -420,7 +422,8 @@ int stuffFrame(char *frame, int frameLength, char **stuffedFrame, int *stuffedFr
 	return 0;
 }
 
-int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame, int *frameLength) {
+int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame,
+		int *frameLength) {
 	*frameLength = stuffedFrameLength;
 	*frame = malloc(*frameLength);
 	if (*frame == NULL) {
@@ -429,17 +432,18 @@ int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame, int *
 	}
 
 	(*frame)[0] = FLAG;
-	for (int stuffedInd = 1, unstuffedInd = 1; stuffedInd < stuffedFrameLength - 1; stuffedInd++, unstuffedInd++) {
+	for (int stuffedInd = 1, unstuffedInd = 1;
+			stuffedInd < stuffedFrameLength - 1; stuffedInd++, unstuffedInd++) {
 		switch (stuffedFrame[stuffedInd]) {
-			case ESC:
-				(*frameLength)--;
-				*frame = realloc(*frame, *frameLength);
-				stuffedInd++;
-				(*frame)[unstuffedInd] = stuffedFrame[stuffedInd] ^ 0x20;
-				break;
-			default:
-				(*frame)[unstuffedInd] = stuffedFrame[stuffedInd];
-				break;
+		case ESC:
+			(*frameLength)--;
+			*frame = realloc(*frame, *frameLength);
+			stuffedInd++;
+			(*frame)[unstuffedInd] = stuffedFrame[stuffedInd] ^ 0x20;
+			break;
+		default:
+			(*frame)[unstuffedInd] = stuffedFrame[stuffedInd];
+			break;
 		}
 	}
 	(*frame)[*frameLength - 1] = FLAG;
@@ -447,7 +451,8 @@ int unstuffFrame(char *stuffedFrame, int stuffedFrameLength, char **frame, int *
 	return 0;
 }
 
-int extractPacket(char **packet, int *packetLength, char *frame, int frameLength) {
+int extractPacket(char **packet, int *packetLength, char *frame,
+		int frameLength) {
 	*packetLength = -4 + frameLength - 2;
 	*packet = malloc(*packetLength);
 	if (*packet == NULL) {
@@ -536,7 +541,8 @@ int llread(int fd, char **packet) {
 		char *stuffedFrame = NULL;
 		int stuffedFrameLength = 0;
 		while (true) {
-			enum FrameTypeRes res = readFrame(fd, &stuffedFrame, &stuffedFrameLength);
+			enum FrameTypeRes res = readFrame(fd, &stuffedFrame,
+					&stuffedFrameLength);
 			if (res == DATA) {
 				break;
 			} else if (res == IGNORE) {
@@ -547,10 +553,11 @@ int llread(int fd, char **packet) {
 
 		char *frame = NULL;
 		int frameLength = 0;
-		if (unstuffFrame(stuffedFrame, stuffedFrameLength, &frame, &frameLength) == -1) {
-			#ifdef DEBUG
+		if (unstuffFrame(stuffedFrame, stuffedFrameLength, &frame, &frameLength)
+				== -1) {
+#ifdef DEBUG
 			printf("llread(): unstuffFrame failed.\n");
-			#endif
+#endif
 			free(stuffedFrame);
 			return -1;
 		}
@@ -558,9 +565,9 @@ int llread(int fd, char **packet) {
 		frameC = frame[2];
 
 		if (extractPacket(packet, &packetLength, frame, frameLength) == -1) {
-			#ifdef DEBUG
+#ifdef DEBUG
 			printf("llread(): extractPacket failed.\n");
-			#endif
+#endif
 			return -1;
 		}
 
@@ -587,9 +594,9 @@ int llread(int fd, char **packet) {
 
 		if (rejected) {
 			numRejects++;
-			#ifdef DEBUG
+#ifdef DEBUG
 			printf("llread(): Packet rejected.\n");
-			#endif
+#endif
 		}
 	} while (rejected && numRejects < MAX_REJS);
 	previousSeqNum = I_FRAMES_SEQ_NUM_BIT(frameC);
@@ -632,25 +639,25 @@ int llwrite(int fd, char *data, int dataLength) {
 		enum FrameTypeRes res;
 		bool endRead = true;
 		do {
-			res = readFrame(fd, &responseFrame,  &responseFrameLength);
+			res = readFrame(fd, &responseFrame, &responseFrameLength);
 			endRead = true;
 			switch (res) {
-				case RR:
-					accepted = true;
-					seqNum = S_U_FRAMES_SEQ_NUM_BIT(responseFrame[2]);
-					break;
-				case REJ:
-					accepted = false;
-					numRejects++;
-					break;
-				case IGNORE:
-					accepted = true;
-					break;
-				case ERROR:
-					timedOut = true;
-					break;
-				default:
-					endRead = false;
+			case RR:
+				accepted = true;
+				seqNum = S_U_FRAMES_SEQ_NUM_BIT(responseFrame[2]);
+				break;
+			case REJ:
+				accepted = false;
+				numRejects++;
+				break;
+			case IGNORE:
+				accepted = true;
+				break;
+			case ERROR:
+				timedOut = true;
+				break;
+			default:
+				endRead = false;
 			}
 			free(responseFrame);
 		} while (!timedOut && !endRead);
@@ -660,16 +667,19 @@ int llwrite(int fd, char *data, int dataLength) {
 		if (timedOut) {
 			++numTimeOuts;
 			if (numTimeOuts < MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out while sending packet. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out while sending packet. Retrying.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out while sending packet. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out while sending packet. Exiting.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 				alarm(0);
 				free(stuffedFrame);
 				return -1;
 			}
 		}
 
-	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS) || (!accepted && numRejects < MAX_REJS));
+	} while ((timedOut && numTimeOuts < MAX_TIME_OUTS)
+			|| (!accepted && numRejects < MAX_REJS));
 
 	free(stuffedFrame);
 
@@ -740,9 +750,11 @@ int llcloseTransmitter(int fd) {
 		if (timedOut) {
 			numTimeOuts++;
 			if (numTimeOuts < MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out on disconnection. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on disconnection. Retrying.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out on disconnection. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf("%d/%d: Timed out on disconnection. Exiting.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 				return -1;
 			}
 		}
@@ -798,9 +810,13 @@ int llcloseReceiver(int fd) {
 		if (timedOut) {
 			numTimeOuts++;
 			if (numTimeOuts < MAX_TIME_OUTS) {
-				printf("%d/%d: Timed out on disconnection acknowledgement. Retrying.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf(
+						"%d/%d: Timed out on disconnection acknowledgement. Retrying.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 			} else {
-				printf("%d/%d: Timed out on disconnection acknowledgement. Exiting.\n", numTimeOuts, MAX_TIME_OUTS);
+				printf(
+						"%d/%d: Timed out on disconnection acknowledgement. Exiting.\n",
+						numTimeOuts, MAX_TIME_OUTS);
 				return -1;
 			}
 		}
@@ -814,14 +830,14 @@ int llcloseReceiver(int fd) {
  */
 int llclose(int fd) {
 	switch (global_type) {
-		case TRANSMITTER:
-			return llcloseTransmitter(fd);
-		case RECEIVER:
-			return llcloseReceiver(fd);
-		default:
-			#ifdef DEBUG
-			printf("llclose(): Invalid CommsType.\n");
-			#endif
-			return -1;
+	case TRANSMITTER:
+		return llcloseTransmitter(fd);
+	case RECEIVER:
+		return llcloseReceiver(fd);
+	default:
+#ifdef DEBUG
+		printf("llclose(): Invalid CommsType.\n");
+#endif
+		return -1;
 	}
 }
