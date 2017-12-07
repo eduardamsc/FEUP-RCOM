@@ -1,0 +1,4 @@
+configure terminal
+no vlan 2-4094
+copy flash:gnu2-clean startup-config
+reload
