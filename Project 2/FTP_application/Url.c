@@ -106,8 +106,11 @@ int parseUrl(struct Url *url, char *str) {
 	if (parseLogin(url, str) == -1) {
 		return -1;
 	}
+
+  #ifdef DEBUG_PRINTS
 	printf("username is - %s\n", url->username);
 	printf("password is - %s\n", url->password);
+  #endif
 
 	if (parseHost(url, str) == -1) {
 		return -1;
@@ -115,23 +118,11 @@ int parseUrl(struct Url *url, char *str) {
 	if (parsePath(url, str) == -1) {
 		return -1;
 	}
+
+  #ifdef DEBUG_PRINTS
 	printf("Host is - %s\n", url->host);
 	printf("Path is - %s\n", url->path);
-
-	//-------HOST-------
-	// 	char host1[128];
-	// 	strcpy(host1, newargv1);
-	// 	char *host = strchr(host1,'@');
-	// 	host++;
-	// 	deleteAfter(host, '/');
-	//
-	// //-------PATH-------
-	// 	char *path = strchr(newargv1,'/');
-	// 	path++;
-	//
-	//
-	// 	printf("host is - %s \n", host);
-	// 	printf("url-path is - %s \n \n", path);
+  #endif
 
 	return 0;
 
