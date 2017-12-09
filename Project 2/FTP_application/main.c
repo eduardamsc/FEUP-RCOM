@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "Url.h"
 
@@ -16,10 +17,10 @@ int main(int argc, char *argv[]) {
 	memset(&url, 0, sizeof(url));
 	parseUrl(&url, argv[1]);
 
-	FtpData ftp;
-	setupConnection(&url, &ftp);
+	// FtpData ftp;
+	// setupConnection(&url, &ftp);
+	//
+	// downloadFile(&url, &ftp);
 
-	downloadFile(&url, &ftp);
-
-	printResult;
+	//printResult;
 }
