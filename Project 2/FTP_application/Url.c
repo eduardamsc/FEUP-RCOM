@@ -27,13 +27,13 @@ int getSeparatorInds(const char *link, int *colonInd, int *atInd, int *firstSlas
 
 	*colonInd = (colonAddr != NULL) ? (colonAddr - link) : -1;
 	*atInd = (atAddr != NULL) ? (atAddr - link) : -1;
-	*firstSlashInd = (firstSlashAddr != NULL) ? (atAddr - link) : -1;
+	*firstSlashInd = (firstSlashAddr != NULL) ? (firstSlashAddr - link) : -1;
 
 	return 0;
 }
 
 int parseUsername(struct Url *url, const char *link) {
-	int colonInd, atInd, firstSlashInd;
+	int colonInd = -1, atInd = -1, firstSlashInd = -1;
 	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
 	if (atInd == -1) {
 		url->username = "anonymous";
@@ -48,7 +48,7 @@ int parseUsername(struct Url *url, const char *link) {
 }
 
 int parsePassword(struct Url *url, const char *link) {
-	int colonInd, atInd, firstSlashInd;
+	int colonInd = -1, atInd = -1, firstSlashInd = -1;
 	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
 	if (atInd == -1) {
 		url->password = "anonymous";
@@ -70,13 +70,13 @@ int parseLogin(struct Url *url, const char *link) {
 }
 
 int parseHost(struct Url *url, const char *link) {
-	int colonInd, atInd, firstSlashInd;
+	int colonInd = -1, atInd = -1, firstSlashInd = -1;
 	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
-	int hostLength;
+	int hostLength = -1;
 	if (atInd == -1) {
 		hostLength = firstSlashInd;
 	} else {
-		hostLength = firstSlashInd - atInd;
+		hostLength = firstSlashInd - atInd - 1;
 	}
 	url->host = malloc(hostLength + 1);
 	strncpy(url->host, link + atInd + 1, hostLength);
@@ -86,9 +86,14 @@ int parseHost(struct Url *url, const char *link) {
 }
 
 int parsePath(struct Url *url, const char *link) {
-	int colonInd, atInd, firstSlashInd;
+	int colonInd = -1, atInd = -1, firstSlashInd = -1;
 	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
+  const int pathLength = strlen(link) - firstSlashInd - 1;
+  url->path = malloc(pathLength + 1);
+  strncpy(url->path, link + firstSlashInd + 1, pathLength);
+  url->path[pathLength] = 0;
 
+  return 0;
 }
 
 int parseUrl(struct Url *url, char *str) {
