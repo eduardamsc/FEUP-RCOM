@@ -6,11 +6,13 @@ void logError(char *msg) {
 	printf("ERROR: %s\n", msg);
 }
 
-int getSeparatorInds(const char *link, int *colonInd, int *atInd, int *firstSlashInd) {
-	*colonInd = -1;
-	*atInd = -1;
-	*firstSlashInd = -1;
+void initLinkInds(struct LinkIndexes *linkInds) {
+	linkInds->colonInd = -1;
+	linkInds->atInd = -1;
+	linkInds->firstSlashInd = -1;
+}
 
+int getSeparatorInds(struct LinkIndexes *linkInds, const char *link) {
 	char *colonAddr = strchr(link, ':');
 	char *atAddr = strchr(link, '@');
 	char *firstSlashAddr = strchr(link, '/');
@@ -25,20 +27,18 @@ int getSeparatorInds(const char *link, int *colonInd, int *atInd, int *firstSlas
 		return -1;
 	}
 
-	*colonInd = (colonAddr != NULL) ? (colonAddr - link) : -1;
-	*atInd = (atAddr != NULL) ? (atAddr - link) : -1;
-	*firstSlashInd = (firstSlashAddr != NULL) ? (firstSlashAddr - link) : -1;
+	linkInds->colonInd = (colonAddr != NULL) ? (colonAddr - link) : -1;
+	linkInds->atInd = (atAddr != NULL) ? (atAddr - link) : -1;
+	linkInds->firstSlashInd = (firstSlashAddr != NULL) ? (firstSlashAddr - link) : -1;
 
 	return 0;
 }
 
-int parseUsername(struct Url *url, const char *link) {
-	int colonInd = -1, atInd = -1, firstSlashInd = -1;
-	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
-	if (atInd == -1) {
+int parseUsername(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
+	if (linkInds->atInd == -1) {
 		url->username = "anonymous";
 	} else {
-		const int usernameLength = colonInd;
+		const int usernameLength = linkInds->colonInd;
 		url->username = malloc(usernameLength + 1);
 		strncpy(url->username, link, usernameLength);
 		url->username[usernameLength] = 0;
@@ -47,50 +47,44 @@ int parseUsername(struct Url *url, const char *link) {
 	return 0;
 }
 
-int parsePassword(struct Url *url, const char *link) {
-	int colonInd = -1, atInd = -1, firstSlashInd = -1;
-	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
-	if (atInd == -1) {
+int parsePassword(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
+	if (linkInds->atInd == -1) {
 		url->password = "anonymous";
 	} else {
-		int passwordLength = atInd - colonInd - 1;
+		int passwordLength = linkInds->atInd - linkInds->colonInd - 1;
 		url->password = malloc(passwordLength + 1);
-		strncpy(url->password, link + colonInd + 1, passwordLength);
+		strncpy(url->password, link + linkInds->colonInd + 1, passwordLength);
 		url->password[passwordLength] = 0;
 	}
 
 	return 0;
 }
 
-int parseLogin(struct Url *url, const char *link) {
-	parseUsername(url, link);
-	parsePassword(url, link);
+int parseLogin(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
+	parseUsername(url, link, linkInds);
+	parsePassword(url, link, linkInds);
 
 	return 0;
 }
 
-int parseHost(struct Url *url, const char *link) {
-	int colonInd = -1, atInd = -1, firstSlashInd = -1;
-	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
+int parseHost(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
 	int hostLength = -1;
-	if (atInd == -1) {
-		hostLength = firstSlashInd;
+	if (linkInds->atInd == -1) {
+		hostLength = linkInds->firstSlashInd;
 	} else {
-		hostLength = firstSlashInd - atInd - 1;
+		hostLength = linkInds->firstSlashInd - linkInds->atInd - 1;
 	}
 	url->host = malloc(hostLength + 1);
-	strncpy(url->host, link + atInd + 1, hostLength);
+	strncpy(url->host, link + linkInds->atInd + 1, hostLength);
 	url->host[hostLength] = 0;
 
 	return 0;
 }
 
-int parsePath(struct Url *url, const char *link) {
-	int colonInd = -1, atInd = -1, firstSlashInd = -1;
-	getSeparatorInds(link, &colonInd, &atInd, &firstSlashInd);
-  const int pathLength = strlen(link) - firstSlashInd - 1;
+int parsePath(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
+  const int pathLength = strlen(link) - linkInds->firstSlashInd - 1;
   url->path = malloc(pathLength + 1);
-  strncpy(url->path, link + firstSlashInd + 1, pathLength);
+  strncpy(url->path, link + linkInds->firstSlashInd + 1, pathLength);
   url->path[pathLength] = 0;
 
   return 0;
@@ -103,7 +97,11 @@ int parseUrl(struct Url *url, char *str) {
 	}
 	str += strlen("ftp://");
 
-	if (parseLogin(url, str) == -1) {
+  struct LinkIndexes linkInds;
+  initLinkInds(&linkInds);
+  getSeparatorInds(&linkInds, str);
+
+	if (parseLogin(url, str, &linkInds) == -1) {
 		return -1;
 	}
 
@@ -112,10 +110,10 @@ int parseUrl(struct Url *url, char *str) {
 	printf("password is - %s\n", url->password);
   #endif
 
-	if (parseHost(url, str) == -1) {
+	if (parseHost(url, str, &linkInds) == -1) {
 		return -1;
 	}
-	if (parsePath(url, str) == -1) {
+	if (parsePath(url, str, &linkInds) == -1) {
 		return -1;
 	}
 
