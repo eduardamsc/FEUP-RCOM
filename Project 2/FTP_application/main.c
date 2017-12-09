@@ -23,4 +23,6 @@ int main(int argc, char *argv[]) {
 	// downloadFile(&url, &ftp);
 
 	//printResult;
+
+	return 0;
 }
