@@ -1,3 +1,6 @@
+#ifndef URL_H
+#define URL_H
+
 #include <stdio.h>
 #include <string.h>
 
@@ -34,3 +37,5 @@ int parsePath(struct Url *url, const char *link, const struct LinkIndexes *linkI
 int parseUrl(struct Url *url, char *str);
 
 void freeUrl(struct Url *url);
+
+#endif
