@@ -8,6 +8,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+
+void logFtpError(char *msg) {
+	printf("ERROR: %s\n", msg);
+}
+
 void readFtp(int socketFd, char *buf, const int bufLength, char *readData, int *readDataLength) {
   int bytesRead = -1;
   memset(buf, 0, bufLength);
@@ -157,8 +162,45 @@ void sendRetr(const struct FtpData *ftpData, const char *filePath) {
   printf("%s\n", buf);
 }
 
+char * getFilenameFromPath(const char *filePath) {
+  const char *lastSlashAddr = strrchr(filePath, '/');
+  const int lastSlashInd = lastSlashAddr - filePath;
+  const int filenameLength = strlen(filePath) - lastSlashInd - 1;
+  char *filename = malloc(filenameLength + 1);
+  filename[0] = 0;
+  strcat(filename, lastSlashAddr + 1);
+
+  return filename;
+}
+
+void receiveFile(const struct FtpData *ftpData, const char *filePath) {
+  char *filename = getFilenameFromPath(filePath);
+  FILE *fp;
+  if ((fp = fopen(filename, "wb")) == NULL) {
+    logFtpError("Cannot open file '%s' for writing.");
+    exit(1);
+  }
+
+  char buf[1024];
+  int bytesRead = -1;
+  while ((bytesRead = recv(ftpData->dataSocketFd, buf, 1024, MSG_DONTWAIT)) != 0) {
+    if (bytesRead == -1) {
+      // herror("recv");
+      continue;
+    }
+
+    if (fwrite(buf, bytesRead, 1, fp) == 0) {
+      logFtpError("Local file writing failure.");
+    }
+  }
+
+  fclose(fp);
+  free(filename);
+}
+
 int downloadFile(const struct FtpData *ftpData, const char *filePath) {
   sendRetr(ftpData, filePath);
+  receiveFile(ftpData, filePath);
 
   return 0;
 }
