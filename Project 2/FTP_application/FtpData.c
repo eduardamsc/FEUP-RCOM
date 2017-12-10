@@ -8,12 +8,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-void readFtp(int cmdSocketFd, char *buf, const int bufLength, char *readData, int *readDataLength) {
+void readFtp(int socketFd, char *buf, const int bufLength, char *readData, int *readDataLength) {
   int bytesRead = -1;
   memset(buf, 0, bufLength);
   while (buf[3] != ' ') {
     memset(buf, 0, bufLength);
-    bytesRead = recv(cmdSocketFd, buf, bufLength, MSG_DONTWAIT);
+    bytesRead = recv(socketFd, buf, bufLength, MSG_DONTWAIT);
   }
   readData = malloc(bytesRead);
   memcpy(readData, buf, bytesRead);
@@ -54,6 +54,28 @@ int openCmdSocket(const struct FtpData *ftpData) {
   }
 
   return cmdSocketFd;
+}
+
+int openDataSocket(const struct FtpData *ftpData) {
+  int dataSocketFd;
+  struct sockaddr_in server_addr;
+
+  bzero((char *) &server_addr, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = inet_addr(ftpData->ipAddress);	//32 bit Internet address network byte ordered
+	server_addr.sin_port = htons(ftpData->dataPort);
+
+  if ((dataSocketFd = socket(AF_INET,SOCK_STREAM,0)) < 0) {
+  	perror("socket()");
+    exit(1);
+  }
+
+  if(connect(dataSocketFd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0){
+    perror("connect()");
+    exit(1);
+  }
+
+  return dataSocketFd;
 }
 
 // TODO: Wrong login.
@@ -112,8 +134,31 @@ int setupConnection(struct FtpData *ftpData, const struct Url *url) {
   ftpData->cmdSocketFd = openCmdSocket(ftpData);
   sendLogin(ftpData, url);
 
-  int dataPort = -1;
-  setPassive(ftpData, &dataPort);
+  setPassive(ftpData, &ftpData->dataPort);
+  ftpData->dataSocketFd = openDataSocket(ftpData);
+
+  return 0;
+}
+
+void sendRetr(const struct FtpData *ftpData, const char *filePath) {
+  char buf[1024];
+
+  const int retrMsgLength = strlen("RETR ") + strlen(filePath) + strlen("\n");
+  char *retrMsg = malloc(retrMsgLength + 1);
+  retrMsg[0] = 0;
+  strcat(retrMsg, "RETR ");
+  strcat(retrMsg, filePath);
+  strcat(retrMsg, "\n");
+
+  send(ftpData->cmdSocketFd, retrMsg, strlen(retrMsg), 0);
+  char *response = NULL;
+  int responseLength = -1;
+  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
+  printf("%s\n", buf);
+}
+
+int downloadFile(const struct FtpData *ftpData, const char *filePath) {
+  sendRetr(ftpData, filePath);
 
   return 0;
 }

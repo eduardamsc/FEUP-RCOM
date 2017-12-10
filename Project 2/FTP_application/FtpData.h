@@ -9,6 +9,7 @@ struct FtpData {
   char *ipAddress;
   int dataPort;
   int cmdSocketFd;
+  int dataSocketFd;
 };
 
 /**
@@ -17,14 +18,14 @@ struct FtpData {
 int initFtpData(struct FtpData *ftpData, const char *hostName);
 
 /**
- *  Logs in, sets passive mode, reads server data port
+ *  Logs in, sets passive mode, opens server data socket.
  */
 int setupConnection(struct FtpData *ftpData, const struct Url *url);
 
 /**
- *
+ * Downloads file.
  */
-int downloadFile(struct FtpData *ftpData);
+int downloadFile(const struct FtpData *ftpData, const char *filePath);
 
 /**
  * Closes sockets.

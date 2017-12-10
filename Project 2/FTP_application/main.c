@@ -21,8 +21,8 @@ int main(int argc, char *argv[]) {
 	struct FtpData ftp;
 	initFtpData(&ftp, url.host);
 	setupConnection(&ftp, &url);
-	//
-	// downloadFile(&url, &ftp);
+
+	downloadFile(&ftp, url.path);
 
 	//printResult;
 
