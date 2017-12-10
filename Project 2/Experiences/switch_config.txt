@@ -1,4 +1,30 @@
 configure terminal
 no vlan 2-4094
-copy flash:gnu2-clean startup-config
+exit
+copy flash:tux1-clean startup-config
+
 reload
+
+
+configure terminal
+vlan 10
+vlan 11
+
+interface fastethernet 0/1
+switchport mode access
+switchport access vlan 10
+interface fastethernet 0/2
+switchport mode access
+switchport access vlan 10
+interface fastethernet 0/3
+switchport mode access
+switchport access vlan 11
+interface fastethernet 0/4
+switchport mode access
+switchport access vlan 11
+interface fastethernet 0/5
+switchport mode access
+switchport access vlan 11
+
+end
+
