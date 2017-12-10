@@ -17,11 +17,17 @@ void logFtpError(char *msg) {
 
 
 
-int msgCode(const char *msg, int msgLength) {
+int msgCode(const char *msg) {
 	int code = -1;
 	char trash[1024];
 	sscanf(msg, "%d%s", &code, trash);
 	return code;
+}
+
+int getFileSize(const char *msg) {
+	int fileSize = -1;
+	sscanf(msg, DiscardUptoOpenParen "(%d bytes).", &fileSize);
+	return fileSize;
 }
 
 void readFtp(int socketFd, char *buf, const int bufLength, char **readData, int *readDataLength) {
@@ -35,9 +41,9 @@ void readFtp(int socketFd, char *buf, const int bufLength, char **readData, int 
   memcpy(*readData, buf, bytesRead);
   *readDataLength = bytesRead;
 
-	#ifdef DEBUG_PRINTS
+	//#ifdef DEBUG_PRINTS
 	printf("%s", *readData);
-	#endif
+	//#endif
 }
 
 int initFtpData(struct FtpData *ftpData, const char *hostName) {
@@ -50,6 +56,8 @@ int initFtpData(struct FtpData *ftpData, const char *hostName) {
 
 	ftpData->ipAddress = inet_ntoa(*((struct in_addr *) h->h_addr));
   ftpData->dataPort = -1;
+	ftpData->cmdSocketFd = -1;
+	ftpData->dataSocketFd = -1;
 
   return 0;
 }
@@ -76,7 +84,7 @@ int openCmdSocket(const struct FtpData *ftpData) {
   return cmdSocketFd;
 }
 
-int openDataSocket(const struct FtpData *ftpData) {
+int openDataSocket(struct FtpData *ftpData) {
   int dataSocketFd;
   struct sockaddr_in server_addr;
 
@@ -87,11 +95,13 @@ int openDataSocket(const struct FtpData *ftpData) {
 
   if ((dataSocketFd = socket(AF_INET,SOCK_STREAM,0)) < 0) {
   	perror("socket()");
+		closeConnection(ftpData);
     exit(1);
   }
 
   if(connect(dataSocketFd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0){
     perror("connect()");
+		closeConnection(ftpData);
     exit(1);
   }
 
@@ -115,7 +125,7 @@ void sendLogin(const struct FtpData *ftpData, const struct Url *url) {
   readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
   //printf("%s\n", buf);
   // clear "password required" message
-	if (msgCode(response, responseLength) == 220) {
+	if (msgCode(response) == 220) {
   	readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
 	}
 
@@ -158,7 +168,7 @@ int setupConnection(struct FtpData *ftpData, const struct Url *url) {
   return 0;
 }
 
-void sendRetr(const struct FtpData *ftpData, const char *filePath) {
+void sendRetr(const struct FtpData *ftpData, const char *filePath, int *fileSize) {
   char buf[1024];
 
   const int retrMsgLength = strlen("RETR ") + strlen(filePath) + strlen("\n");
@@ -173,6 +183,7 @@ void sendRetr(const struct FtpData *ftpData, const char *filePath) {
   int responseLength = -1;
   readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
   //printf("%s\n", buf);
+	*fileSize = getFileSize(response);
 }
 
 char * getFilenameFromPath(const char *filePath) {
@@ -186,39 +197,50 @@ char * getFilenameFromPath(const char *filePath) {
   return filename;
 }
 
-void receiveFile(const struct FtpData *ftpData, const char *filePath) {
+void receiveFile(struct FtpData *ftpData, const char *filePath, const int fileSize) {
   char *filename = getFilenameFromPath(filePath);
   FILE *fp;
   if ((fp = fopen(filename, "wb")) == NULL) {
     logFtpError("Cannot open file '%s' for writing.");
+		closeConnection(ftpData);
     exit(1);
   }
 
   char buf[1024];
   int bytesRead = -1;
+	int totalBytesRead = 0;
+	printf("\e[?25l"); // hide cursor
   while ((bytesRead = recv(ftpData->dataSocketFd, buf, 1024, MSG_DONTWAIT)) != 0) {
     if (bytesRead == -1) {
       // herror("recv");
       continue;
     }
-
     if (fwrite(buf, bytesRead, 1, fp) == 0) {
       logFtpError("Local file writing failure.");
     }
-  }
+		totalBytesRead += bytesRead;
+		float transferProgress = (float) totalBytesRead / fileSize * 100.0;
+		printf("\rDownload progress: %.1f%% (%d / %d bytes)", transferProgress, totalBytesRead, fileSize);
+	}
+	printf("\e[?25h"); // display cursor
 
   fclose(fp);
   free(filename);
 }
 
-int downloadFile(const struct FtpData *ftpData, const char *filePath) {
-  sendRetr(ftpData, filePath);
-  receiveFile(ftpData, filePath);
+int downloadFile(struct FtpData *ftpData, const char *filePath) {
+	int fileSize = -1;
+  sendRetr(ftpData, filePath, &fileSize);
+  receiveFile(ftpData, filePath, fileSize);
 
   return 0;
 }
 
 void closeConnection(struct FtpData *ftpData) {
-  close(ftpData->cmdSocketFd);
-	close(ftpData->dataSocketFd);
+	if (ftpData->cmdSocketFd != -1) {
+	  close(ftpData->cmdSocketFd);
+	}
+	if (ftpData->dataSocketFd != -1) {
+		close(ftpData->dataSocketFd);
+	}
 }
