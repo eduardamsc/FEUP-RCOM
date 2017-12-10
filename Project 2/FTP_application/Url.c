@@ -93,7 +93,7 @@ int parsePath(struct Url *url, const char *link, const struct LinkIndexes *linkI
 int parseUrl(struct Url *url, char *str) {
 	if (strncmp(str, "ftp://", strlen("ftp://")) != 0) {
 		logError("Link must start with 'ftp://'");
-		return -1;
+		exit(1);
 	}
 	str += strlen("ftp://");
 
