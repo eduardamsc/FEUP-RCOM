@@ -8,21 +8,36 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define DiscardUptoOpenParen "%*[^(]"
+#define DiscardUptoCloseParen "%*[^)]"
 
 void logFtpError(char *msg) {
 	printf("ERROR: %s\n", msg);
 }
 
-void readFtp(int socketFd, char *buf, const int bufLength, char *readData, int *readDataLength) {
+
+
+int msgCode(const char *msg, int msgLength) {
+	int code = -1;
+	char trash[1024];
+	sscanf(msg, "%d%s", &code, trash);
+	return code;
+}
+
+void readFtp(int socketFd, char *buf, const int bufLength, char **readData, int *readDataLength) {
   int bytesRead = -1;
   memset(buf, 0, bufLength);
   while (buf[3] != ' ') {
     memset(buf, 0, bufLength);
     bytesRead = recv(socketFd, buf, bufLength, MSG_DONTWAIT);
   }
-  readData = malloc(bytesRead);
-  memcpy(readData, buf, bytesRead);
+  *readData = malloc(bytesRead);
+  memcpy(*readData, buf, bytesRead);
   *readDataLength = bytesRead;
+
+	#ifdef DEBUG_PRINTS
+	printf("%s", *readData);
+	#endif
 }
 
 int initFtpData(struct FtpData *ftpData, const char *hostName) {
@@ -97,10 +112,12 @@ void sendLogin(const struct FtpData *ftpData, const struct Url *url) {
   send(ftpData->cmdSocketFd, userMsg, strlen(userMsg), 0);
   char *response = NULL;
   int responseLength = -1;
-  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
-  printf("%s\n", buf);
+  readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
+  //printf("%s\n", buf);
   // clear "password required" message
-  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
+	if (msgCode(response, responseLength) == 220) {
+  	readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
+	}
 
   const int passwordLength = strlen("PASS ") + strlen(url->password) + strlen("\n");
   char *passwordMsg = malloc(passwordLength + 1);
@@ -112,8 +129,8 @@ void sendLogin(const struct FtpData *ftpData, const struct Url *url) {
   send(ftpData->cmdSocketFd, passwordMsg, strlen(passwordMsg), 0);
   response = NULL;
   responseLength = -1;
-  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
-  printf("%s\n", buf);
+  readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
+  //printf("%s\n", buf);
 }
 
 void setPassive(const struct FtpData *ftpData, int *dataPort) {
@@ -122,17 +139,13 @@ void setPassive(const struct FtpData *ftpData, int *dataPort) {
   send(ftpData->cmdSocketFd, "PASV\n", strlen("PASV\n"), 0);
   char *response = NULL;
   int responseLength = -1;
-  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
-  printf("%s\n", buf);
+  readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
+  //printf("%s\n", buf);
 
-  #define DiscardUptoOpenParen "%*[^(]"
-  #define DiscardUptoCloseParen "%*[^)]"
   int ipPart1, ipPart2, ipPart3, ipPart4, dataPortPart1, dataPortPart2;
   sscanf(buf, DiscardUptoOpenParen "(%d,%d,%d,%d,%d,%d)",
         &ipPart1, &ipPart2, &ipPart3, &ipPart4, &dataPortPart1, &dataPortPart2);
   *dataPort = 256 * dataPortPart1 + dataPortPart2;
-  #undef DiscardUptoOpenParen
-  #undef DiscardUptoCloseParen
 }
 
 int setupConnection(struct FtpData *ftpData, const struct Url *url) {
@@ -158,8 +171,8 @@ void sendRetr(const struct FtpData *ftpData, const char *filePath) {
   send(ftpData->cmdSocketFd, retrMsg, strlen(retrMsg), 0);
   char *response = NULL;
   int responseLength = -1;
-  readFtp(ftpData->cmdSocketFd, buf, 1024, response, &responseLength);
-  printf("%s\n", buf);
+  readFtp(ftpData->cmdSocketFd, buf, 1024, &response, &responseLength);
+  //printf("%s\n", buf);
 }
 
 char * getFilenameFromPath(const char *filePath) {
@@ -207,4 +220,5 @@ int downloadFile(const struct FtpData *ftpData, const char *filePath) {
 
 void closeConnection(struct FtpData *ftpData) {
   close(ftpData->cmdSocketFd);
+	close(ftpData->dataSocketFd);
 }
