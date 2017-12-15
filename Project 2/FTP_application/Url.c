@@ -36,7 +36,9 @@ int getSeparatorInds(struct LinkIndexes *linkInds, const char *link) {
 
 int parseUsername(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
 	if (linkInds->atInd == -1) {
-		url->username = "anonymous";
+		url->username = malloc(strlen("anonymous") + 1);
+		url->username[0] = 0;
+		strcat(url->username, "anonymous");
 	} else {
 		const int usernameLength = linkInds->colonInd;
 		url->username = malloc(usernameLength + 1);
@@ -49,7 +51,9 @@ int parseUsername(struct Url *url, const char *link, const struct LinkIndexes *l
 
 int parsePassword(struct Url *url, const char *link, const struct LinkIndexes *linkInds) {
 	if (linkInds->atInd == -1) {
-		url->password = "anonymous";
+		url->password = malloc(strlen("anonymous") + 1);
+		url->password[0] = 0;
+		strcat(url->password, "anonymous");
 	} else {
 		int passwordLength = linkInds->atInd - linkInds->colonInd - 1;
 		url->password = malloc(passwordLength + 1);
@@ -93,7 +97,7 @@ int parsePath(struct Url *url, const char *link, const struct LinkIndexes *linkI
 int parseUrl(struct Url *url, char *str) {
 	if (strncmp(str, "ftp://", strlen("ftp://")) != 0) {
 		logError("Link must start with 'ftp://'");
-		return -1;
+		exit(1);
 	}
 	str += strlen("ftp://");
 
@@ -119,7 +123,7 @@ int parseUrl(struct Url *url, char *str) {
 
   #ifdef DEBUG_PRINTS
 	printf("Host is - %s\n", url->host);
-	printf("Path is - %s\n", url->path);
+	printf("Path is - %s\n\n", url->path);
   #endif
 
 	return 0;

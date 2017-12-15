@@ -24,6 +24,9 @@ int main(int argc, char *argv[]) {
 
 	downloadFile(&ftp, url.path);
 
+	closeConnection(&ftp);
+
+	freeUrl(&url);
 	//printResult;
 
 	return 0;

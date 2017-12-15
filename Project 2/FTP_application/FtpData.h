@@ -25,7 +25,7 @@ int setupConnection(struct FtpData *ftpData, const struct Url *url);
 /**
  * Downloads file.
  */
-int downloadFile(const struct FtpData *ftpData, const char *filePath);
+int downloadFile(struct FtpData *ftpData, const char *filePath);
 
 /**
  * Closes sockets.
