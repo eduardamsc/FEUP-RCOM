@@ -108,7 +108,6 @@ int openDataSocket(struct FtpData *ftpData) {
   return dataSocketFd;
 }
 
-// TODO: Wrong login.
 void sendLogin(const struct FtpData *ftpData, const struct Url *url) {
   char buf[1024];
 
